@@ -1,0 +1,29 @@
+# Local/generated storage data
+cms/storage/**
+!cms/storage/.htaccess
+!cms/storage/**/
+!cms/storage/**/.gitkeep
+
+# Local environment and editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Dependency folders
+vendor/
+node_modules/
+
+# Vite dev-server marker
+cms/.vite-hot
+
+# Build artifacts
+cms/admin/
+dist/
+
+#Codex file
+.codex
+
+#MCP
+mcp/

@@ -1,0 +1,22 @@
+{
+  "name": "cometcms",
+  "private": true,
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev": "make dev",
+    "build": "make build",
+    "test": "make test",
+    "ci": "make ci",
+    "clean": "make clean",
+    "lint:php": "make lint-php",
+    "lint:frontend": "make lint-frontend",
+    "test:backend": "make test-backend",
+    "test:frontend": "make test-frontend",
+    "web:build": "make web-build",
+    "web:dev": "npm --workspace web run dev",
+    "web:lint": "npm --workspace web run lint",
+    "web:test": "npm --workspace web run test"
+  }
+}

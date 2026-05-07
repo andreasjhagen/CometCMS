@@ -1,0 +1,80 @@
+name: Release Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, with or without leading v'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build distribution
+        run: make build
+
+      - name: Prepare release assets
+        id: package
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME}"
+          fi
+
+          version="${version#v}"
+          tag="v${version}"
+          asset="cometcms-${version}.zip"
+
+          printf "<?php\n\nreturn '%s';\n" "${version}" > dist/app/version.php
+
+          (cd dist && zip -qr "../${asset}" .)
+          sha256sum "${asset}" > "${asset}.sha256"
+
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "asset=${asset}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.package.outputs.tag }}"
+          asset="${{ steps.package.outputs.asset }}"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" "${asset}" "${asset}.sha256" --clobber
+          else
+            gh release create "${tag}" "${asset}" "${asset}.sha256" \
+              --target "${GITHUB_SHA}" \
+              --title "CometCMS ${tag}" \
+              --generate-notes
+          fi

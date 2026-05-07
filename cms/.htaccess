@@ -1,0 +1,17 @@
+Options -Indexes
+
+<IfModule mod_php.c>
+    php_value upload_max_filesize 20M
+    php_value post_max_size 21M
+</IfModule>
+
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
