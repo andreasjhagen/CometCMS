@@ -18,8 +18,6 @@ Use **Edit user roles** from **Users** to create roles or change their grants. T
 
 Navigate to **Users** in the sidebar. Users are grouped by role: Admins → Editors → Viewers.
 
-![Users overview grouped by role in the CometCMS admin](../screenshots/view-users.png)
-
 ## Creating a user
 
 1. Click **New user**.
