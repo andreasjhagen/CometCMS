@@ -651,6 +651,7 @@ const messages = {
   'bulk.selectAll': 'Alle auswählen',
   'bulk.choose': '- wählen -',
   'bulk.applyFiles': 'Auf {count} {itemLabel} anwenden',
+  'bulk.clear': 'Leeren',
 
   'workspaces.title': 'Arbeitsbereiche',
   'workspaces.new': 'Neuer Arbeitsbereich',

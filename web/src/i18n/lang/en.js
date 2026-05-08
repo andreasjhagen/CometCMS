@@ -647,6 +647,7 @@ const messages = {
     'bulk.selectAll': 'Select all',
     'bulk.choose': '- choose -',
     'bulk.applyFiles': 'Apply to {count} {itemLabel}',
+    'bulk.clear': 'Clear',
 
     'workspaces.title': 'Workspaces',
     'workspaces.new': 'New workspace',
