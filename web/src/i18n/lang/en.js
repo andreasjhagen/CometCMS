@@ -263,6 +263,7 @@ const messages = {
     'roles.permissionGrants': 'Permission grants',
     'roles.create': 'Create',
     'roles.edit': 'Edit',
+    'roles.duplicate': 'Duplicate',
     'roles.delete': 'Delete',
     'roles.saveChanges': 'Save changes',
     'roles.deleteConfirm': 'Delete {name}?',
