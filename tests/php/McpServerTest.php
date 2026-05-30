@@ -6,6 +6,7 @@ use CometCMS\Auth\ApiTokenRepository;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
 use CometCMS\Core\Http;
+use CometCMS\Media\MediaRepository;
 use CometCMS\Mcp\McpServer;
 use CometCMS\Workspaces\WorkspaceContext;
 
@@ -80,11 +81,43 @@ test('mcp tools list includes embedded tools and omits upload_media', function (
     assert_same(200, $status);
     $names = array_map(static fn(array $tool): string => (string) $tool['name'], $response['result']['tools'] ?? []);
     assert_true(in_array('list_content_types', $names, true));
+    assert_true(in_array('get_media_item', $names, true));
     assert_true(in_array('delete_media', $names, true));
     assert_false(in_array('upload_media', $names, true));
 
     $json = json_encode($response, JSON_UNESCAPED_SLASHES);
     assert_true(str_contains((string) $json, '"properties":{}'));
+});
+
+test('mcp list media is compact and get media item returns details', function (): void {
+    WorkspaceContext::setActive('default');
+    file_put_contents(comet_test_workspace_path() . '/media/hero.jpg', 'image');
+    file_put_contents(comet_test_workspace_path() . '/media/guide.pdf', 'pdf');
+    (new MediaRepository())->assignCategory('hero.jpg', 'Images / Heroes');
+
+    $token = comet_test_mcp_token([
+        ['actions' => ['media.read'], 'resources' => ['workspace:default:media:*']],
+    ]);
+
+    [, $listPayload] = comet_test_mcp_tool($token, 'list_media', [
+        'limit' => 10,
+        'offset' => 0,
+    ]);
+
+    $first = $listPayload['data'][0] ?? [];
+    assert_true(isset($first['filename']));
+    assert_false(isset($first['url']));
+    assert_false(isset($first['thumb_url']));
+    assert_same('get_media_item', $listPayload['meta']['details_tool'] ?? null);
+    assert_true(in_array('Images / Heroes', array_column($listPayload['meta']['categories'] ?? [], 'name'), true));
+
+    [, $detailPayload] = comet_test_mcp_tool($token, 'get_media_item', [
+        'filename' => 'hero.jpg',
+    ]);
+
+    assert_same('hero.jpg', $detailPayload['data']['filename'] ?? null);
+    assert_true(isset($detailPayload['data']['url']));
+    assert_same('Images / Heroes', $detailPayload['data']['category'] ?? null);
 });
 
 test('mcp tools call can list content types with an authorized token', function (): void {

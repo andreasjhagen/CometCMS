@@ -455,6 +455,17 @@ final class MediaRepository
         ];
     }
 
+    public function find(string $file): ?array
+    {
+        $file = basename(rawurldecode($file));
+
+        if (!is_file($this->path($file))) {
+            return null;
+        }
+
+        return $this->item($file);
+    }
+
     public function setUploadedBy(string $file, string $userId): void
     {
         $file = basename($file);

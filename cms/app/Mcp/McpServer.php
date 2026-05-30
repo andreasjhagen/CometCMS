@@ -220,6 +220,7 @@ final class McpServer
             'update_entry' => fn(array $args): array => $this->updateEntry($args),
             'delete_entry' => fn(array $args): array => $this->deleteEntry($args),
             'list_media' => fn(array $args): array => $this->listMedia($args),
+            'get_media_item' => fn(array $args): array => $this->getMediaItem($args),
             'create_media_category' => fn(array $args): array => $this->createMediaCategory($args),
             'set_media_category' => fn(array $args): array => $this->setMediaCategory($args),
             'delete_media' => fn(array $args): array => $this->deleteMedia($args),
@@ -426,10 +427,24 @@ final class McpServer
             max(0, (int) ($args['offset'] ?? 0)),
         );
 
-        $result['data'] = array_map(fn(array $file): array => $this->publicMediaItem($file), $result['data']);
-        $result['meta']['categories'] = $this->media->categories();
+        $result['data'] = array_map(fn(array $file): array => $this->mediaSummaryItem($file), $result['data']);
+        $result['meta']['categories'] = $this->mediaCategoryOverview();
+        $result['meta']['details_tool'] = 'get_media_item';
 
         return $this->pageInfo($result);
+    }
+
+    private function getMediaItem(array $args): array
+    {
+        $filename = trim((string) ($args['filename'] ?? ''));
+        $this->requirePermission('get_media_item', ['filename' => $filename]);
+        $item = $this->media->find($filename);
+
+        if ($item === null) {
+            throw new McpError('Media file not found.', 404, ['code' => 'not_found']);
+        }
+
+        return ['data' => $this->publicMediaItem($item)];
     }
 
     private function createMediaCategory(array $args): array
@@ -511,7 +526,8 @@ final class McpServer
             'create_entry' => ['title' => 'Create content entry', 'description' => 'Create a content entry.', 'inputSchema' => $this->schema(['collection' => $string, 'entry' => $object], ['collection', 'entry'])],
             'update_entry' => ['title' => 'Update content entry', 'description' => 'Update a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string, 'entry' => $object], ['collection', 'identifier', 'entry'])],
             'delete_entry' => ['title' => 'Delete content entry', 'description' => 'Soft-delete a content entry by stable id or slug.', 'inputSchema' => $this->schema(['collection' => $string, 'identifier' => $string], ['collection', 'identifier'])],
-            'list_media' => ['title' => 'List media', 'description' => 'Fetch one paginated page of media files.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination)],
+            'list_media' => ['title' => 'List media', 'description' => 'Fetch a compact overview of categories and one paginated page of media files. Use get_media_item for URLs and full metadata.', 'inputSchema' => $this->schema(['q' => $optionalString, 'category' => $optionalString] + $pagination)],
+            'get_media_item' => ['title' => 'Get media item', 'description' => 'Fetch one media file with URLs, dimensions, visibility, and editable metadata.', 'inputSchema' => $this->schema(['filename' => $string], ['filename'])],
             'create_media_category' => ['title' => 'Create media category', 'description' => 'Create a media category or subcategory.', 'inputSchema' => $this->schema(['name' => $string, 'parent' => $optionalString], ['name'])],
             'set_media_category' => ['title' => 'Set media category', 'description' => 'Assign or clear a media file category.', 'inputSchema' => $this->schema(['filename' => $string, 'category' => $optionalString], ['filename'])],
             'delete_media' => ['title' => 'Delete media', 'description' => 'Delete a media file.', 'inputSchema' => $this->schema(['filename' => $string], ['filename'])],
@@ -568,6 +584,7 @@ final class McpServer
             'update_entry' => [['content.update', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : [], 'fields' => $this->changedEntryFields($args)]]],
             'delete_entry' => [['content.delete', ['type' => 'content', 'collection' => (string) ($args['collection'] ?? '*'), 'entry' => is_array($args['entry'] ?? null) ? $args['entry'] : []]]],
             'list_media' => [['media.read', ['type' => 'media']]],
+            'get_media_item' => [['media.read', ['type' => 'media', 'file' => (string) ($args['filename'] ?? '*')]]],
             'create_media_category' => [['media.update', ['type' => 'media']]],
             'set_media_category' => [['media.update', ['type' => 'media', 'file' => (string) ($args['filename'] ?? '*')]]],
             'delete_media' => [['media.delete', ['type' => 'media', 'file' => (string) ($args['filename'] ?? '*')]]],
@@ -591,6 +608,7 @@ final class McpServer
             'update_entry' => [permissionGrant('content.update', $workspace, $this->contentResource($args, true), $this->changedEntryFields($args))],
             'delete_entry' => [permissionGrant('content.delete', $workspace, $this->contentResource($args, true))],
             'list_media' => [permissionGrant('media.read', $workspace, 'media:*')],
+            'get_media_item' => [permissionGrant('media.read', $workspace, $this->mediaResource($args))],
             'create_media_category' => [permissionGrant('media.update', $workspace, 'media:*')],
             'set_media_category' => [permissionGrant('media.update', $workspace, isset($args['filename']) ? 'media:' . trim((string) $args['filename']) : 'media:*')],
             'delete_media' => [permissionGrant('media.delete', $workspace, $this->mediaResource($args))],
@@ -724,6 +742,42 @@ final class McpServer
             'title' => $file['title'] ?? '',
             'visibility' => $file['visibility'] ?? 'public',
         ];
+    }
+
+    private function mediaSummaryItem(array $file): array
+    {
+        return [
+            'filename' => $file['name'],
+            'name' => $file['name'],
+            'category' => $file['category'],
+            'mime' => $file['mime'],
+            'size' => $file['size'],
+            'uploaded_at' => $file['uploaded_at'] ?? null,
+        ];
+    }
+
+    private function mediaCategoryOverview(): array
+    {
+        $counts = [];
+
+        foreach ($this->media->categories() as $category) {
+            $counts[$category] = 0;
+        }
+
+        foreach ($this->media->files() as $file) {
+            $category = (string) ($file['category'] ?? '');
+            if ($category === '') {
+                $category = 'Uncategorized';
+            }
+
+            $counts[$category] = ($counts[$category] ?? 0) + 1;
+        }
+
+        return array_map(
+            static fn(string $name, int $count): array => ['name' => $name, 'count' => $count],
+            array_keys($counts),
+            array_values($counts),
+        );
     }
 
     private function textResult(mixed $value, bool $isError = false): array
