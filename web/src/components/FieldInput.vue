@@ -748,18 +748,29 @@ const isMediaDropActive = computed(() => mediaDragDepth.value > 0);
 // ---- Markdown visual editor ----
 const markdownMode = ref("visual");
 
+function markdownToHtml(value) {
+  return marked.parse(String(value ?? ""), { async: false });
+}
+
+function editorMarkdownValue() {
+  return turndown.turndown(editor.value?.getHTML() ?? "");
+}
+
 const editor = useEditor({
   extensions: [StarterKit],
   content: "",
   onCreate({ editor }) {
     if (props.config.type !== "markdown") return;
-    const html = marked.parse(String(props.modelValue ?? ""), { async: false });
+    const html = markdownToHtml(props.modelValue);
     editor.commands.setContent(html, false);
   },
   onUpdate({ editor }) {
     if (props.config.type !== "markdown") return;
     if (markdownMode.value === "visual") {
-      emit("update:modelValue", turndown.turndown(editor.getHTML()));
+      const markdown = turndown.turndown(editor.getHTML());
+      if (markdown !== String(props.modelValue ?? "")) {
+        emit("update:modelValue", markdown);
+      }
     }
   },
 });
@@ -768,7 +779,7 @@ function setMarkdownMode(mode) {
   if (props.config.type !== "markdown") return;
   if (mode === markdownMode.value) return;
   if (mode === "visual") {
-    const html = marked.parse(String(props.modelValue ?? ""), { async: false });
+    const html = markdownToHtml(props.modelValue);
     editor.value?.commands.setContent(html, false);
   }
   markdownMode.value = mode;
@@ -779,9 +790,9 @@ watch(
   (val) => {
     if (props.config.type !== "markdown") return;
     if (markdownMode.value !== "visual") return;
-    const html = marked.parse(String(val ?? ""), { async: false });
-    const currentHtml = editor.value?.getHTML() ?? "";
-    if (currentHtml !== html) {
+    const markdown = String(val ?? "");
+    if (editorMarkdownValue() !== markdown) {
+      const html = markdownToHtml(markdown);
       editor.value?.commands.setContent(html, false);
     }
   },
@@ -856,7 +867,7 @@ const isEmptyValue = computed(() => {
 });
 
 const readonlyMarkdownHtml = computed(() =>
-  marked.parse(String(props.modelValue ?? ""), { async: false }),
+  markdownToHtml(props.modelValue),
 );
 
 const rangeMin = computed(() => numberOr(props.config.min, 0));
