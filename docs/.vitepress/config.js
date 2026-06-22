@@ -65,6 +65,7 @@ export default defineConfig({
         items: [
           { text: 'Public API', link: '/api/public-api' },
           { text: 'Admin API', link: '/api/admin-api' },
+          { text: 'MCP API', link: '/api/mcp' },
           { text: 'OpenAPI', link: '/api/openapi' },
         ],
       },
