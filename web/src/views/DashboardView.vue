@@ -9,92 +9,46 @@
     <LoadingSpinner v-if="loading" />
 
     <template v-else>
-      <!-- Stats -->
-      <div class="grid gap-4 mb-8 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="card p-5">
-          <p
-            class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-          >
-            {{ t("dashboard.stats.collections") }}
-          </p>
-          <p class="text-3xl font-bold text-slate-900">
-            {{ stats.collections }}
-          </p>
-          <p class="mt-1 text-sm text-slate-500">
-            {{ t("dashboard.stats.totalCollections") }}
-          </p>
-        </div>
-        <div class="card p-5">
-          <p
-            class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-          >
-            {{ t("dashboard.stats.entries") }}
-          </p>
-          <p class="text-3xl font-bold text-slate-900">{{ stats.entries }}</p>
-          <p class="mt-1 text-sm text-slate-500">
-            {{ t("dashboard.stats.totalEntries") }}
-          </p>
-        </div>
-        <div class="card p-5">
-          <p
-            class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-          >
-            {{ t("dashboard.stats.contentTypes") }}
-          </p>
-          <p class="text-3xl font-bold text-slate-900">
-            {{ stats.content_types }}
-          </p>
-          <p class="mt-1 text-sm text-slate-500">
-            {{ t("dashboard.stats.totalContentTypes") }}
-          </p>
-        </div>
-        <div class="card p-5">
-          <p
-            class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-          >
-            {{ t("dashboard.stats.cmsVersion") }}
-          </p>
-          <p class="text-3xl font-bold text-slate-900">
-            v{{ appVersion || "..." }}
-          </p>
-          <router-link
-            to="/update"
-            class="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40"
-          >
-            <Icon icon="mdi:update" class="h-4 w-4 text-slate-500" />
-            <span>{{ t("dashboard.stats.checkUpdates") }}</span>
-          </router-link>
-        </div>
-      </div>
-
-      <div class="grid gap-5 lg:grid-cols-2">
+      <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
         <!-- Recent Activity -->
         <ActivityFeed />
 
-        <!-- Quick actions -->
+        <!-- Status -->
         <section class="card p-5">
-          <h2 class="text-sm font-semibold text-slate-900 mb-4">
-            {{ t("dashboard.quickActions") }}
-          </h2>
-          <div class="grid gap-3 sm:grid-cols-2">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h2 class="text-sm font-semibold text-slate-900">
+              {{ t("dashboard.status") }}
+            </h2>
             <router-link
-              v-for="action in quickActions"
-              :key="action.label"
-              :to="action.to"
-              class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 text-sm font-medium text-slate-800 transition hover:border-theme-300 hover:bg-theme-50/40"
+              to="/update"
+              class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-theme-300 hover:bg-theme-50/40"
             >
-              <span class="flex min-w-0 items-center gap-3">
-                <Icon
-                  :icon="action.icon"
-                  class="h-5 w-5 shrink-0 text-slate-500"
-                />
-                <span class="truncate">{{ action.label }}</span>
-              </span>
-              <Icon
-                icon="mdi:chevron-right"
-                class="h-4 w-4 shrink-0 text-slate-400"
-              />
+              <Icon icon="mdi:update" class="h-4 w-4 text-slate-500" />
+              <span>{{ t("dashboard.stats.checkUpdates") }}</span>
             </router-link>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div
+              v-for="item in statusItems"
+              :key="item.label"
+              class="rounded-lg border border-slate-200 bg-slate-50/70 p-4"
+            >
+              <div class="mb-3 flex items-center gap-2">
+                <Icon
+                  :icon="item.icon"
+                  class="h-5 w-5 shrink-0 text-theme-600"
+                />
+                <p
+                  class="min-w-0 truncate text-xs font-semibold uppercase tracking-wider text-slate-500"
+                >
+                  {{ item.label }}
+                </p>
+              </div>
+              <p class="text-2xl font-bold text-slate-900">
+                {{ item.value }}
+              </p>
+              <p class="mt-1 text-sm text-slate-500">{{ item.caption }}</p>
+            </div>
           </div>
         </section>
       </div>
@@ -112,48 +66,43 @@ import { useI18n } from "../i18n/index.js";
 
 const loading = ref(true);
 const stats = ref({ collections: 0, entries: 0, content_types: 0 });
-const collections = ref([]);
 const appVersion = ref("");
 const { t } = useI18n();
 
-const firstCollection = computed(() => collections.value[0]?.name ?? "");
-const quickActions = computed(() => [
+const statusItems = computed(() => [
   {
-    label: t("dashboard.actions.viewCollections"),
-    to: firstCollection.value
-      ? `/content/${firstCollection.value}`
-      : "/content-types",
+    label: t("dashboard.stats.collections"),
+    value: stats.value.collections,
+    caption: t("dashboard.stats.totalCollections"),
     icon: "mdi:folder-outline",
   },
   {
-    label: t("dashboard.actions.addEntry"),
-    to: firstCollection.value
-      ? `/content/${firstCollection.value}/new`
-      : "/content-types/new",
-    icon: "mdi:plus-circle-outline",
+    label: t("dashboard.stats.entries"),
+    value: stats.value.entries,
+    caption: t("dashboard.stats.totalEntries"),
+    icon: "mdi:file-document-outline",
   },
   {
-    label: t("dashboard.actions.manageMedia"),
-    to: "/media",
-    icon: "mdi:image-multiple-outline",
+    label: t("dashboard.stats.contentTypes"),
+    value: stats.value.content_types,
+    caption: t("dashboard.stats.totalContentTypes"),
+    icon: "mdi:table",
   },
   {
-    label: t("app.nav.apiExplorer"),
-    to: "/api-explorer",
-    icon: "mdi:code-json",
+    label: t("dashboard.stats.cmsVersion"),
+    value: `v${appVersion.value || "..."}`,
+    caption: t("dashboard.stats.currentVersion"),
+    icon: "mdi:rocket-launch-outline",
   },
 ]);
 
 onMounted(async () => {
   try {
-    const [dashboard, types, app] = await Promise.allSettled([
+    const [dashboard, app] = await Promise.allSettled([
       api.dashboard(),
-      api.contentTypes.list(),
       api.appInfo(),
     ]);
     if (dashboard.status === "fulfilled") stats.value = dashboard.value.data;
-    if (types.status === "fulfilled")
-      collections.value = types.value.data ?? [];
     if (app.status === "fulfilled") appVersion.value = app.value.data?.version ?? "";
   } finally {
     loading.value = false;
