@@ -726,6 +726,7 @@ const form = ref({
 });
 const contentTypeLocales = ref([]);
 const fullEntry = ref(null); // full raw entry including translations sub-object
+const liveEntryBeforeRestore = ref(null);
 const currentLocale = ref(""); // active locale tab
 const defaultLocale = computed(
   () =>
@@ -781,6 +782,32 @@ function populateFormFromLocale(entry, loc) {
       : fieldValueForForm(source[name] ?? null, config);
   }
   form.value.locale = loc;
+}
+
+function populateFormFromEntry(entry, loc = "") {
+  form.value = {
+    status: entry.status ?? "draft",
+    slug: entry.slug ?? "",
+    published_at: entry.published_at ? toDatetimeLocal(entry.published_at) : "",
+    author_id: entry.author_id ?? form.value.author_id,
+    locale: loc,
+    title: "",
+  };
+
+  if (contentTypeLocales.value.length > 0 && loc) {
+    populateFormFromLocale(entry, loc);
+  } else {
+    const source = revisionFieldSource(entry);
+    form.value.title = source.title ?? "";
+    for (const name of Object.keys(customSchema.value)) {
+      form.value[name] = fieldValueForForm(
+        source[name] ?? null,
+        customSchema.value[name],
+      );
+    }
+  }
+
+  form.value = applyFieldDefaults(form.value);
 }
 
 function switchLocale(loc) {
@@ -1100,6 +1127,8 @@ async function handleSave() {
         singletonCreateMode.value = false;
         isDirty.value = false;
         fullEntry.value = res.data;
+        liveEntryBeforeRestore.value = null;
+        previewingRevision.value = null;
         entryMeta.value = {
           created_at: res.data.created_at ?? null,
           updated_at: res.data.updated_at ?? null,
@@ -1121,6 +1150,8 @@ async function handleSave() {
       );
       isDirty.value = false;
       fullEntry.value = res.data;
+      liveEntryBeforeRestore.value = null;
+      previewingRevision.value = null;
       entryMeta.value = {
         created_at: res.data.created_at ?? null,
         updated_at: res.data.updated_at ?? null,
@@ -1156,16 +1187,15 @@ async function openRevisions() {
 function restoreRevision(revision) {
   if (!canSaveEntry.value) return;
   const entry = revision.entry ?? revision;
-  form.value = {
-    status: entry.status ?? "draft",
-    title: entry.title ?? "",
-    slug: entry.slug ?? "",
-    published_at: entry.published_at ? toDatetimeLocal(entry.published_at) : "",
-    author_id: entry.author_id ?? form.value.author_id,
-    ...entry.data,
-  };
-  form.value = applyFieldDefaults(form.value);
-  form.value = formValuesForEditing(form.value);
+  const restoreLocale =
+    contentTypeLocales.value.length > 0
+      ? currentLocale.value || defaultLocale.value
+      : "";
+
+  liveEntryBeforeRestore.value ??= fullEntry.value;
+  fullEntry.value = entry;
+  currentLocale.value = restoreLocale;
+  populateFormFromEntry(entry, restoreLocale);
   previewingRevision.value = revision;
   showRevisions.value = false;
   toast.success(t("contentEdit.revisionLoaded"));
@@ -1187,19 +1217,6 @@ function payloadForSave() {
   return payload;
 }
 
-function formValuesForEditing(source) {
-  const next = { ...source };
-  if (next.published_at) next.published_at = toDatetimeLocal(next.published_at);
-
-  for (const [fieldName, config] of Object.entries(customSchema.value)) {
-    if (Object.prototype.hasOwnProperty.call(next, fieldName)) {
-      next[fieldName] = fieldValueForForm(next[fieldName], config);
-    }
-  }
-
-  return next;
-}
-
 function fieldValueForForm(value, config) {
   if (config?.type === "datetime" && value) {
     return toDatetimeLocal(value);
@@ -1208,8 +1225,31 @@ function fieldValueForForm(value, config) {
   return cloneLocaleValue(value);
 }
 
-function cancelRestore() {
+async function cancelRestore() {
+  const restoreLocale =
+    contentTypeLocales.value.length > 0
+      ? currentLocale.value || defaultLocale.value
+      : "";
+  let currentEntry = liveEntryBeforeRestore.value;
+
+  if (!isNew.value && entryId.value) {
+    try {
+      const res = await api.content.get(collection, entryId.value);
+      currentEntry = res.data;
+    } catch {
+      // Fall back to the saved entry snapshot from before the revision preview.
+    }
+  }
+
+  if (currentEntry) {
+    fullEntry.value = currentEntry;
+    populateFormFromEntry(currentEntry, restoreLocale);
+  }
+
+  liveEntryBeforeRestore.value = null;
   previewingRevision.value = null;
+  await nextTick();
+  isDirty.value = false;
 }
 
 function applyFieldDefaults(source) {
@@ -1249,12 +1289,16 @@ const REVISION_SKIP = new Set([
   "deleted_by",
   "updated_by",
   "data",
+  "translations",
 ]);
 
 const currentVsFirstDiff = computed(() => {
   if (revisions.value.length === 0) return [];
-  const current = flatRevisionEntry(form.value);
-  const previous = flatRevisionEntry(revisions.value[0]?.entry);
+  const current = flatRevisionEntry(form.value, currentLocale.value);
+  const previous = flatRevisionEntry(
+    revisions.value[0]?.entry,
+    currentLocale.value,
+  );
   const allKeys = new Set([...Object.keys(current), ...Object.keys(previous)]);
   const changes = [];
   for (const key of allKeys) {
@@ -1268,20 +1312,24 @@ const currentVsFirstDiff = computed(() => {
   return changes;
 });
 
-function flatRevisionEntry(entry) {
+function flatRevisionEntry(entry, loc = "") {
+  const source = revisionFieldSource(entry, loc);
   const out = {};
-  for (const [k, v] of Object.entries(entry ?? {})) {
-    if (!REVISION_SKIP.has(k)) out[k] = v;
-  }
-  for (const [k, v] of Object.entries((entry ?? {}).data ?? {})) {
+  for (const [k, v] of Object.entries(source)) {
     if (!REVISION_SKIP.has(k)) out[k] = v;
   }
   return out;
 }
 
 function revisionDiff(index) {
-  const current = flatRevisionEntry(revisions.value[index]?.entry);
-  const previous = flatRevisionEntry(revisions.value[index + 1]?.entry);
+  const current = flatRevisionEntry(
+    revisions.value[index]?.entry,
+    currentLocale.value,
+  );
+  const previous = flatRevisionEntry(
+    revisions.value[index + 1]?.entry,
+    currentLocale.value,
+  );
   const allKeys = new Set([...Object.keys(current), ...Object.keys(previous)]);
   const changes = [];
   for (const key of allKeys) {
@@ -1293,6 +1341,20 @@ function revisionDiff(index) {
     }
   }
   return changes;
+}
+
+function revisionFieldSource(entry, loc = "") {
+  const source = { ...(entry ?? {}) };
+  const legacyData =
+    source.data && typeof source.data === "object" ? source.data : {};
+  const translation =
+    loc &&
+    source.translations?.[loc] &&
+    typeof source.translations[loc] === "object"
+      ? source.translations[loc]
+      : {};
+
+  return { ...source, ...legacyData, ...translation };
 }
 
 function normDiffVal(v) {
