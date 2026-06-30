@@ -4,6 +4,9 @@ export const DEFAULT_ADMIN_LOCALE = 'en'
 
 const STORAGE_KEY = 'cometcms-admin-locale'
 const languageModules = import.meta.glob('./lang/*.{js,json}', { eager: true })
+const browserStorage = typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function'
+  ? localStorage
+  : null
 
 function localeFromPath(path) {
   return path
@@ -55,8 +58,8 @@ export const messages = Object.fromEntries(
 const currentLocale = ref(resolveInitialLocale())
 
 function resolveInitialLocale() {
-  if (typeof localStorage !== 'undefined') {
-    const storedValue = localStorage.getItem(STORAGE_KEY)
+  if (browserStorage) {
+    const storedValue = browserStorage.getItem(STORAGE_KEY)
     const stored = normalizeLocale(storedValue)
     if (storedValue !== null) return stored
   }
@@ -85,8 +88,8 @@ export function setLocale(locale, options = {}) {
     document.documentElement.lang = normalized
   }
 
-  if (options.persist !== false && typeof localStorage !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, normalized)
+  if (options.persist !== false && browserStorage) {
+    browserStorage.setItem(STORAGE_KEY, normalized)
   }
 }
 

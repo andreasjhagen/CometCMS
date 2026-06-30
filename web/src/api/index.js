@@ -1,8 +1,14 @@
 // CSRF token is seeded from the PHP-rendered meta tag on first load,
 // then kept up-to-date from the X-CSRF-Token response header.
+const browserStorage = typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function'
+  ? localStorage
+  : null
 let csrfToken = (typeof document !== 'undefined' ? document.querySelector('meta[name="csrf-token"]')?.content : null) ?? ''
-let activeWorkspace = (typeof localStorage !== 'undefined' ? localStorage.getItem('cometcms.workspace') : null) || ''
+let activeWorkspace = browserStorage?.getItem('cometcms.workspace') || ''
 let defaultWorkspace = ''
+const inFlightReads = new Map()
+const REQUEST_TIMEOUT_MS = 15000
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
 export function getActiveWorkspace() {
   return activeWorkspace || defaultWorkspace || 'default'
@@ -10,7 +16,7 @@ export function getActiveWorkspace() {
 
 export function setActiveWorkspace(workspace) {
   activeWorkspace = workspace || defaultWorkspace || 'default'
-  localStorage.setItem('cometcms.workspace', activeWorkspace)
+  browserStorage?.setItem('cometcms.workspace', activeWorkspace)
 }
 
 export function getDefaultWorkspace() {
@@ -25,7 +31,60 @@ export function setDefaultWorkspace(workspace) {
   }
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function retryDelay(attempt, res = null) {
+  const retryAfter = res?.headers?.get('Retry-After')
+  const retryAfterSeconds = retryAfter ? Number(retryAfter) : 0
+
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return Math.min(retryAfterSeconds * 1000, 5000)
+  }
+
+  return 300 * attempt
+}
+
+function isRetryableNetworkError(err) {
+  return err?.name === 'AbortError' || err instanceof TypeError
+}
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController()
+  const timer = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    globalThis.clearTimeout(timer)
+  }
+}
+
 async function request(method, path, body = null) {
+  const normalizedMethod = method.toUpperCase()
+  const readKey = normalizedMethod === 'GET' && body === null
+    ? `${getActiveWorkspace()} ${normalizedMethod} ${path}`
+    : null
+
+  if (readKey && inFlightReads.has(readKey)) {
+    return inFlightReads.get(readKey)
+  }
+
+  const promise = requestOnce(normalizedMethod, path, body)
+
+  if (readKey) {
+    inFlightReads.set(readKey, promise)
+    promise.then(
+      () => inFlightReads.delete(readKey),
+      () => inFlightReads.delete(readKey),
+    )
+  }
+
+  return promise
+}
+
+async function requestOnce(method, path, body = null) {
   const headers = { 'X-Requested-With': 'XMLHttpRequest' }
   headers['X-Comet-Workspace'] = getActiveWorkspace()
 
@@ -45,12 +104,43 @@ async function request(method, path, body = null) {
     }
   }
 
-  const res = await fetch(`/admin/api${path}`, {
-    method,
-    headers,
-    body: finalBody,
-    credentials: 'same-origin',
-  })
+  const maxAttempts = method === 'GET' ? 3 : 1
+  let res
+  let lastError = null
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      res = await fetchWithTimeout(`/admin/api${path}`, {
+        method,
+        headers,
+        body: finalBody,
+        credentials: 'same-origin',
+      })
+
+      if (attempt < maxAttempts && RETRYABLE_STATUSES.has(res.status)) {
+        await sleep(retryDelay(attempt, res))
+        continue
+      }
+
+      break
+    } catch (err) {
+      lastError = err
+
+      if (attempt >= maxAttempts || !isRetryableNetworkError(err)) {
+        const error = new Error(err?.name === 'AbortError' ? 'Request timed out' : 'Network error')
+        error.code = err?.name === 'AbortError' ? 'request_timeout' : 'network_error'
+        throw error
+      }
+
+      await sleep(retryDelay(attempt))
+    }
+  }
+
+  if (!res) {
+    const error = new Error(lastError?.message ?? 'Network error')
+    error.code = 'network_error'
+    throw error
+  }
 
   // Always keep our CSRF token in sync with what the server returns.
   const newToken = res.headers.get('X-CSRF-Token')
@@ -84,6 +174,7 @@ function requestWithProgress(method, path, formData, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open(method, `/admin/api${path}`)
+    xhr.timeout = REQUEST_TIMEOUT_MS * 4
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
     xhr.setRequestHeader('X-Comet-Workspace', getActiveWorkspace())
     if (csrfToken) xhr.setRequestHeader('X-CSRF-Token', csrfToken)
@@ -124,6 +215,11 @@ function requestWithProgress(method, path, formData, onProgress) {
 
     xhr.addEventListener('error', () => reject(new Error('Network error')))
     xhr.addEventListener('abort', () => reject(new Error('Upload aborted')))
+    xhr.addEventListener('timeout', () => {
+      const err = new Error('Upload timed out')
+      err.code = 'request_timeout'
+      reject(err)
+    })
 
     xhr.send(formData)
   })

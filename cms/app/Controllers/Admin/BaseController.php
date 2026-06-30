@@ -23,6 +23,7 @@ abstract class BaseController
     protected PermissionService $permissions;
     protected ApiCache $cache;
     protected Logger $logger;
+    private ?string $csrfToken = null;
 
     public function __construct(protected readonly Http $http)
     {
@@ -78,6 +79,8 @@ abstract class BaseController
             $this->json(['error' => ['code' => 'forbidden', 'message' => 'You do not have permission to perform this action.']], 403);
         }
 
+        $this->releaseReadOnlySession();
+
         return $user;
     }
 
@@ -125,13 +128,29 @@ abstract class BaseController
                 unset($_SESSION[$key]);
             }
 
-            header('X-CSRF-Token: ' . Security::csrfToken());
+            $this->csrfToken = Security::csrfToken();
+        }
+
+        if ($this->csrfToken !== null) {
+            header('X-CSRF-Token: ' . $this->csrfToken);
         }
 
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    private function releaseReadOnlySession(): void
+    {
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+
+        if (!in_array($method, ['GET', 'HEAD'], true) || session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        $this->csrfToken = Security::csrfToken();
+        session_write_close();
     }
 
     protected function safeUser(?array $user): ?array
