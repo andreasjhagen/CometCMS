@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 use CometCMS\Updates\UpdateService;
 
-test('update service builds fallback release sources', function (): void {
+test('update service builds configured fallback release sources', function (): void {
     global $cometConfig;
 
     $originalUpdates = $cometConfig['updates'];
 
     try {
-        $cometConfig['updates']['repository_url'] = 'https://github.com/CometCMS/CometCMS';
+        $cometConfig['updates']['repository_url'] = 'https://github.com/andreasjhagen/cometcms';
         $cometConfig['updates']['releases_api_url'] = '';
         $cometConfig['updates']['fallback_repository_urls'] = [
-            'https://github.com/andreasjhagen/cometcms',
+            'https://github.com/example/cometcms-mirror',
         ];
 
         $method = new ReflectionMethod(UpdateService::class, 'config');
@@ -21,8 +21,8 @@ test('update service builds fallback release sources', function (): void {
 
         assert_same(
             [
-                'https://api.github.com/repos/CometCMS/CometCMS/releases/latest',
                 'https://api.github.com/repos/andreasjhagen/cometcms/releases/latest',
+                'https://api.github.com/repos/example/cometcms-mirror/releases/latest',
             ],
             array_column($config['release_sources'], 'api_url')
         );
@@ -31,22 +31,22 @@ test('update service builds fallback release sources', function (): void {
     }
 });
 
-test('update service uses transfer fallback when config key is missing', function (): void {
+test('update service has no implicit fallback when config key is missing', function (): void {
     global $cometConfig;
 
     $originalUpdates = $cometConfig['updates'];
 
     try {
         unset($cometConfig['updates']['fallback_repository_urls']);
-        $cometConfig['updates']['repository_url'] = 'https://github.com/CometCMS/CometCMS';
+        $cometConfig['updates']['repository_url'] = 'https://github.com/andreasjhagen/cometcms';
         $cometConfig['updates']['releases_api_url'] = '';
 
         $method = new ReflectionMethod(UpdateService::class, 'config');
         $config = $method->invoke(new UpdateService());
 
         assert_same(
-            'https://api.github.com/repos/andreasjhagen/cometcms/releases/latest',
-            $config['release_sources'][1]['api_url'] ?? null
+            ['https://api.github.com/repos/andreasjhagen/cometcms/releases/latest'],
+            array_column($config['release_sources'], 'api_url')
         );
     } finally {
         $cometConfig['updates'] = $originalUpdates;

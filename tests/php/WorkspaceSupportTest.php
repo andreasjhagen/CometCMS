@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use CometCMS\Controllers\Admin\AuthController;
 use CometCMS\Auth\PermissionService;
 use CometCMS\Content\ContentRepository;
 use CometCMS\Content\ContentTypeRepository;
+use CometCMS\Core\Http;
 use CometCMS\Media\MediaRepository;
+use CometCMS\Storage\SettingsStore;
 use CometCMS\Workspaces\WorkspaceContext;
 use CometCMS\Workspaces\WorkspaceRepository;
 
@@ -72,6 +75,21 @@ test('workspace named default can be archived when it is not the configured defa
 
     assert_true((bool) ($workspace['archived'] ?? false));
     assert_same('site-a', $repository->getDefault());
+});
+
+test('setup controller construction does not create a default workspace before setup', function (): void {
+    comet_test_remove_directory(comet_test_workspace_path('default'));
+    @unlink(COMET_STORAGE . '/settings.json');
+
+    $_SERVER['REQUEST_URI'] = '/admin/api/setup';
+    $_SERVER['SCRIPT_NAME'] = '/index.php';
+
+    new AuthController(new Http());
+
+    $settings = (new SettingsStore())->all();
+
+    assert_false(isset($settings['workspaces']));
+    assert_false(is_dir(comet_test_workspace_path('default')));
 });
 
 test('workspace content types entries and media are isolated', function (): void {

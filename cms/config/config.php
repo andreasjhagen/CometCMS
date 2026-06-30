@@ -9,10 +9,8 @@ return [
     ],
     'updates' => [
         'enabled' => true,
-        'repository_url' => 'https://github.com/CometCMS/CometCMS',
-        'fallback_repository_urls' => [
-            'https://github.com/andreasjhagen/cometcms',
-        ],
+        'repository_url' => 'https://github.com/andreasjhagen/cometcms',
+        'fallback_repository_urls' => [],
         'releases_api_url' => '',
         'release_asset_pattern' => '/cometcms.*\.zip$/i',
         'checksum_asset_pattern' => '/cometcms.*\.zip\.sha256$/i',

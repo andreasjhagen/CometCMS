@@ -217,7 +217,7 @@ final class UpdateService
 
     private function config(): array
     {
-        $repositoryUrl = rtrim((string) comet_config('updates.repository_url', 'https://github.com/CometCMS/CometCMS'), '/');
+        $repositoryUrl = rtrim((string) comet_config('updates.repository_url', 'https://github.com/andreasjhagen/cometcms'), '/');
         $apiUrl = (string) comet_config('updates.releases_api_url', '');
         $fallbackRepositoryUrls = $this->fallbackRepositoryUrls();
 
@@ -255,9 +255,7 @@ final class UpdateService
 
     private function fallbackRepositoryUrls(): array
     {
-        $urls = comet_config('updates.fallback_repository_urls', [
-            'https://github.com/andreasjhagen/cometcms',
-        ]);
+        $urls = comet_config('updates.fallback_repository_urls', []);
 
         if (is_string($urls) && trim($urls) !== '') {
             $urls = [$urls];

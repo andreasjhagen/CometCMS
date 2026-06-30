@@ -26,31 +26,40 @@ abstract class BaseController
 
     public function __construct(protected readonly Http $http)
     {
-        try {
-            WorkspaceContext::fromRequest();
-        } catch (\Throwable $e) {
-            $path = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-            $workspaceExempt = str_starts_with($path, '/admin/api/workspaces')
-                || $path === '/admin/api/me'
-                || $path === '/admin/api/login'
-                || $path === '/admin/api/logout'
-                || $path === '/admin/api/setup';
-            if (!$workspaceExempt) {
-                http_response_code(404);
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['error' => ['code' => 'not_found', 'message' => $e->getMessage()]], JSON_UNESCAPED_SLASHES);
-                exit;
-            }
-
-            WorkspaceContext::reset();
-        }
-
         $this->users = new UserRepository();
         $this->tokens = new ApiTokenRepository();
         $this->auth = new Auth($this->users);
         $this->permissions = new PermissionService();
-        $this->cache = ApiCache::fromConfig();
         $this->logger = new Logger();
+
+        $path = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        $preSetupAuthRoute = !$this->users->hasUsers() && in_array($path, [
+            '/admin/api/me',
+            '/admin/api/login',
+            '/admin/api/setup',
+        ], true);
+
+        if (!$preSetupAuthRoute) {
+            try {
+                WorkspaceContext::fromRequest();
+            } catch (\Throwable $e) {
+                $workspaceExempt = str_starts_with($path, '/admin/api/workspaces')
+                    || $path === '/admin/api/me'
+                    || $path === '/admin/api/login'
+                    || $path === '/admin/api/logout'
+                    || $path === '/admin/api/setup';
+                if (!$workspaceExempt) {
+                    http_response_code(404);
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['error' => ['code' => 'not_found', 'message' => $e->getMessage()]], JSON_UNESCAPED_SLASHES);
+                    exit;
+                }
+
+                WorkspaceContext::reset();
+            }
+        }
+
+        $this->cache = ApiCache::fromConfig();
     }
 
     protected function requireUser(string $role = 'viewer'): array
