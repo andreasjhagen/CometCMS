@@ -6,26 +6,12 @@ use CometCMS\Core\Http;
 
 function comet_http_test_run_inline_php(string $code): string
 {
-    $command = 'php -r ' . escapeshellarg($code);
-    $output = shell_exec($command);
-
-    if (!is_string($output)) {
-        throw new RuntimeException('Failed to run inline PHP command for HTTP test.');
-    }
-
-    return $output;
+    return comet_test_run_php(['-r', $code]);
 }
 
 function comet_http_test_run_inline_php_with_stdin(string $code, string $stdin): string
 {
-    $command = 'printf %s ' . escapeshellarg($stdin) . ' | php -r ' . escapeshellarg($code);
-    $output = shell_exec($command);
-
-    if (!is_string($output)) {
-        throw new RuntimeException('Failed to run inline PHP command with stdin for HTTP test.');
-    }
-
-    return $output;
+    return comet_test_run_php(['-r', $code], $stdin);
 }
 
 function comet_http_test_bootstrap_path(): string
@@ -64,15 +50,7 @@ test('http requestJson parses body and falls back to empty object for invalid pa
     );
 
     $port = 18080 + random_int(0, 2000);
-    $pid = (int) trim((string) shell_exec(sprintf(
-        'php -S 127.0.0.1:%d %s >/dev/null 2>&1 & echo $!',
-        $port,
-        escapeshellarg($routerPath)
-    )));
-
-    if ($pid <= 0) {
-        throw new RuntimeException('Failed to start temporary PHP server for requestJson test.');
-    }
+    $server = comet_test_start_php_server('127.0.0.1', $port, $routerPath);
 
     try {
         usleep(300000);
@@ -104,7 +82,7 @@ test('http requestJson parses body and falls back to empty object for invalid pa
         assert_same('{"ok":true}', trim($validResponse));
         assert_same('[]', trim($invalidResponse));
     } finally {
-        shell_exec('kill ' . $pid);
+        comet_test_stop_process($server);
     }
 });
 

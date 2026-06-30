@@ -8,14 +8,7 @@ use CometCMS\Core\ValidationException;
 
 function comet_api_responder_test_run_inline_php(string $code): string
 {
-    $command = 'php -r ' . escapeshellarg($code);
-    $output = shell_exec($command);
-
-    if (!is_string($output)) {
-        throw new RuntimeException('Failed to run inline PHP command for API responder test.');
-    }
-
-    return $output;
+    return comet_test_run_php(['-r', $code]);
 }
 
 function comet_api_responder_test_bootstrap_require_snippet(): string

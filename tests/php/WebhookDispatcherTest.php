@@ -13,15 +13,7 @@ test('webhook dispatcher only sends matching enabled webhook events', function (
     file_put_contents($routerPath, "<?php\nfile_put_contents('" . addslashes($captureFile) . "', file_get_contents('php://input') . PHP_EOL, FILE_APPEND);\nhttp_response_code(204);\n");
 
     $port = 20080 + random_int(0, 2000);
-    $pid = (int) trim((string) shell_exec(sprintf(
-        'php -S 127.0.0.1:%d %s >/dev/null 2>&1 & echo $!',
-        $port,
-        escapeshellarg($routerPath)
-    )));
-
-    if ($pid <= 0) {
-        throw new RuntimeException('Failed to start temporary webhook server.');
-    }
+    $server = comet_test_start_php_server('127.0.0.1', $port, $routerPath);
 
     $previous = $cometConfig['webhooks'] ?? [];
 
@@ -57,7 +49,7 @@ test('webhook dispatcher only sends matching enabled webhook events', function (
         assert_same('entry-1', $payload['data']['id'] ?? null);
     } finally {
         $cometConfig['webhooks'] = $previous;
-        shell_exec('kill ' . $pid);
+        comet_test_stop_process($server);
     }
 });
 

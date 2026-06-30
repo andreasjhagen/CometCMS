@@ -165,7 +165,7 @@ test('restore service reports missing zip extension in no-extension subprocess',
         'echo $e->getMessage();' .
         '}';
 
-    $output = shell_exec('php -n -r ' . escapeshellarg($script));
+    $output = comet_test_run_php(['-n', '-r', $script]);
 
     if (!class_exists(ZipArchive::class)) {
         assert_true(str_contains((string) $output, 'zip extension is required'));
