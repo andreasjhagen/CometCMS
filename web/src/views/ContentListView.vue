@@ -44,24 +44,6 @@
           </div>
         </div>
 
-        <div class="w-36">
-          <label class="form-label text-xs">{{
-            t("contentList.rowsPerPage")
-          }}</label>
-          <select
-            v-model.number="pageSize"
-            class="form-select w-full rounded-lg border-slate-300 text-sm"
-            @change="changePageSize"
-          >
-            <option
-              v-for="option in pageSizeOptions"
-              :key="option"
-              :value="option"
-            >
-              {{ option }}
-            </option>
-          </select>
-        </div>
         <button type="button" @click="applyFilters" class="btn-secondary">
           <Icon icon="mdi:filter-outline" class="h-4 w-4" />
           {{ t("contentList.apply") }}
@@ -560,13 +542,17 @@
 
       <!-- Pagination -->
       <div class="flex items-center justify-between text-sm text-slate-500">
-        <span>{{
-          t("contentList.showing", {
-            start: pageStart,
-            end: pageEnd,
-            total: totalEntries,
-          })
-        }}</span>
+        <span>
+          {{ t("contentList.showingPrefix") }} {{ pageStart }}-<InlinePageSizeSelect
+            v-model="pageSize"
+            :display-value="pageEnd"
+            :options="pageSizeOptions"
+            :aria-label="t('contentList.rowsPerPage')"
+            @change="changePageSize"
+          />
+          {{ t("contentList.showingOf") }} {{ totalEntries }}
+          {{ entryLabel(totalEntries) }}
+        </span>
         <div class="flex gap-2">
           <button
             :disabled="!canPageBackward"
@@ -593,6 +579,7 @@ import LoadingSpinner from "../components/LoadingSpinner.vue";
 import BulkEditBar from "../components/BulkEditBar.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import ContentListCell from "../components/ContentListCell.vue";
+import InlinePageSizeSelect from "../components/InlinePageSizeSelect.vue";
 import { Icon } from "@iconify/vue";
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -1027,7 +1014,7 @@ const col = computed(
 
 const filters = ref({ q: "" });
 const trashCount = ref(0);
-const pageSizeOptions = [10, 20, 30, 40, 50, 100];
+const pageSizeOptions = [20, 30, 40, 50, 100, 200, 300];
 const pageSize = ref(30);
 const pageOffset = ref(0);
 const hasActiveFilters = computed(() => filters.value.q.trim() !== "");

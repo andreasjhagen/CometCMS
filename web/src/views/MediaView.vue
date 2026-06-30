@@ -235,17 +235,18 @@
 
         <template v-else-if="files.length > 0">
           <div
-            v-if="totalPages > 1"
             class="mb-4 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between"
           >
             <p>
-              {{
-                t("media.showing", {
-                  start: pageStart,
-                  end: pageEnd,
-                  total: totalFiles,
-                })
-              }}
+              {{ t("media.showingPrefix") }} {{ pageStart }} -
+              <InlinePageSizeSelect
+                v-model="pageSize"
+                :display-value="pageEnd"
+                :options="pageSizeOptions"
+                :aria-label="t('media.rowsPerPage')"
+                @change="changePageSize"
+              />
+              {{ t("media.showingOf") }} {{ totalFiles }}
             </p>
             <div class="flex items-center gap-2">
               <button
@@ -813,6 +814,7 @@ import { Icon } from "@iconify/vue";
 import SlidePanel from "../components/SlidePanel.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
+import InlinePageSizeSelect from "../components/InlinePageSizeSelect.vue";
 import MediaCategorySidebar from "../components/MediaCategorySidebar.vue";
 import MediaBulkEditBar from "../components/MediaBulkEditBar.vue";
 import { api } from "../api/index.js";
@@ -1013,15 +1015,16 @@ const categoryTree = computed(() =>
     return { path: category, optionLabel: `${"  ".repeat(depth)}${label}` };
   }),
 );
-const pageSize = 20;
+const pageSizeOptions = [20, 30, 40, 50, 100, 200, 300];
+const pageSize = ref(20);
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(totalFiles.value / pageSize)),
+  Math.max(1, Math.ceil(totalFiles.value / pageSize.value)),
 );
 const pageStart = computed(() =>
-  totalFiles.value === 0 ? 0 : (currentPage.value - 1) * pageSize + 1,
+  totalFiles.value === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1,
 );
 const pageEnd = computed(() =>
-  Math.min(currentPage.value * pageSize, totalFiles.value),
+  Math.min(currentPage.value * pageSize.value, totalFiles.value),
 );
 const apiEndpointUrl = computed(() => {
   if (showDetail.value && detailFile.value?.name) {
@@ -1029,8 +1032,8 @@ const apiEndpointUrl = computed(() => {
   }
 
   return mediaListEndpoint({
-    limit: pageSize,
-    offset: (currentPage.value - 1) * pageSize,
+    limit: pageSize.value,
+    offset: (currentPage.value - 1) * pageSize.value,
     q: search.value.trim(),
     category: selectedCategory.value,
   });
@@ -1075,8 +1078,8 @@ async function load() {
     const params = { sort: sortOrder.value };
 
     if (!isUnusedFilter) {
-      params.limit = pageSize;
-      params.offset = (currentPage.value - 1) * pageSize;
+      params.limit = pageSize.value;
+      params.offset = (currentPage.value - 1) * pageSize.value;
     }
 
     const query = search.value.trim();
@@ -1097,7 +1100,10 @@ async function load() {
       totalFiles.value = filtered.length;
     } else {
       const total = res.meta?.total ?? res.data.length;
-      const totalPagesFromResponse = Math.max(1, Math.ceil(total / pageSize));
+      const totalPagesFromResponse = Math.max(
+        1,
+        Math.ceil(total / pageSize.value),
+      );
       if (total > 0 && currentPage.value > totalPagesFromResponse) {
         totalFiles.value = total;
         currentPage.value = totalPagesFromResponse;
@@ -1139,6 +1145,18 @@ function scheduleLoad(resetPage = false) {
   loadTimer = setTimeout(() => {
     load();
   }, 200);
+}
+
+function changePageSize() {
+  clearSelection();
+  lastSelectedIndex.value = -1;
+
+  if (currentPage.value !== 1) {
+    currentPage.value = 1;
+    return;
+  }
+
+  scheduleLoad();
 }
 
 async function uploadFiles(fileList) {
