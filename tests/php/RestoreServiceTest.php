@@ -37,7 +37,7 @@ test('restore service inspect parses manifest counts and available parts', funct
     comet_restore_test_create_zip($zipPath, [
         'manifest.json' => json_encode([
             'cms' => 'CometCMS',
-            'version' => '0.9.7',
+            'version' => '0.9.8',
             'workspace' => 'default',
             'created_at' => '2026-05-08T00:00:00Z',
             'parts' => ['content_types', 'content', 'media', 'users', 'api_tokens', 'webhooks'],
