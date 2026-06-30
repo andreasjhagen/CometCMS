@@ -528,8 +528,8 @@ final class CometCMS_Migrator
             'select' => !empty($field['multiple'])
                 ? array_values(array_map('strval', is_array($value) ? $value : []))
                 : (is_array($value) ? (string) reset($value) : (string) $value),
-            'date_picker' => $this->acf_date_value($value),
-            'date_time_picker' => $this->acf_datetime_value($value),
+            'date_picker' => $this->acf_date_value($value, $field),
+            'date_time_picker' => $this->acf_datetime_value($value, $field),
             'image', 'file' => $this->acf_media_value($value, false),
             'gallery' => $this->acf_media_value($value, true),
             'repeater' => $this->acf_repeater_value($value, $field),
@@ -631,7 +631,7 @@ final class CometCMS_Migrator
         return 0;
     }
 
-    private function acf_date_value(mixed $value): ?string
+    private function acf_date_value(mixed $value, array $field): ?string
     {
         $raw = trim((string) $value);
         if ($raw === '') {
@@ -642,21 +642,87 @@ final class CometCMS_Migrator
             return substr($raw, 0, 4) . '-' . substr($raw, 4, 2) . '-' . substr($raw, 6, 2);
         }
 
-        $time = strtotime($raw);
+        $date = $this->acf_parse_datetime($raw, array_merge($this->acf_date_formats($field), [
+            'Y-m-d',
+            'd.m.Y',
+            'd/m/Y',
+            'm/d/Y',
+            'F j, Y',
+            'j F Y',
+        ]));
 
-        return $time === false ? null : gmdate('Y-m-d', $time);
+        return $date !== null ? $date->format('Y-m-d') : null;
     }
 
-    private function acf_datetime_value(mixed $value): ?string
+    private function acf_datetime_value(mixed $value, array $field): ?string
     {
         $raw = trim((string) $value);
         if ($raw === '') {
             return null;
         }
 
+        $date = $this->acf_parse_datetime($raw, array_merge($this->acf_date_formats($field), [
+            'Y-m-d H:i:s',
+            'Y-m-d H:i',
+            'Y-m-d\TH:i:s',
+            'Y-m-d\TH:i',
+            'd.m.Y H:i:s',
+            'd.m.Y H:i',
+            'd/m/Y H:i:s',
+            'd/m/Y H:i',
+            'd/m/Y g:i a',
+            'd/m/Y g:i A',
+            'm/d/Y H:i:s',
+            'm/d/Y H:i',
+            'm/d/Y g:i a',
+            'm/d/Y g:i A',
+            'F j, Y g:i a',
+            'F j, Y g:i A',
+            'j F Y H:i',
+        ]));
+
+        return $date !== null ? $date->format('Y-m-d\TH:i') : null;
+    }
+
+    private function acf_parse_datetime(string $raw, array $formats): ?DateTimeImmutable
+    {
+        foreach ($formats as $format) {
+            $date = DateTimeImmutable::createFromFormat('!' . $format, $raw);
+
+            if ($date instanceof DateTimeImmutable) {
+                $errors = DateTimeImmutable::getLastErrors();
+                if (($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0)) && $date->format($format) === $raw) {
+                    return $date;
+                }
+            }
+        }
+
         $time = strtotime($raw);
 
-        return $time === false ? null : gmdate('c', $time);
+        return $time === false ? null : (new DateTimeImmutable('@' . $time))->setTimezone($this->wordpress_timezone());
+    }
+
+    private function acf_date_formats(array $field): array
+    {
+        $formats = [];
+
+        foreach (['return_format', 'display_format'] as $key) {
+            $format = trim((string) ($field[$key] ?? ''));
+            if ($format !== '') {
+                $formats[] = $format;
+            }
+        }
+
+        return array_values(array_unique($formats));
+    }
+
+    private function wordpress_timezone(): DateTimeZone
+    {
+        if (function_exists('wp_timezone')) {
+            return wp_timezone();
+        }
+
+        return new DateTimeZone(wp_timezone_string() ?: 'UTC');
     }
 
     private function acf_json_value(mixed $value): mixed
