@@ -121,7 +121,7 @@
           </Transition>
         </div>
 
-        <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
+        <nav class="nav-scrollbar flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
           <router-link
             to="/dashboard"
             class="nav-link"
@@ -549,5 +549,40 @@ async function handleLogout() {
 .backdrop-enter-from,
 .backdrop-leave-to {
   opacity: 0;
+}
+
+
+/* Modern sidebar scrollbar */
+.nav-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-sidebar-text) / 0.22) transparent;
+  scrollbar-gutter: stable;
+}
+
+.nav-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.nav-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav-scrollbar::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-sidebar-text) / 0.16);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.nav-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-sidebar-text) / 0.28);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.nav-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgb(var(--color-sidebar-text) / 0.38);
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 </style>
