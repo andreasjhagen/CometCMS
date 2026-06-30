@@ -136,7 +136,9 @@
                       v-model="hook.events"
                       class="form-checkbox rounded border-slate-300 text-theme-600"
                     />
-                    <span class="text-sm text-slate-600">{{ event }}</span>
+                    <span class="text-sm text-slate-600">{{
+                      eventLabel(event)
+                    }}</span>
                   </label>
                 </div>
               </div>
@@ -183,6 +185,10 @@ const WEBHOOK_EVENTS = [
   "content.deleted",
   "content.restored",
 ];
+
+function eventLabel(event) {
+  return t(`webhooks.events.${event}`);
+}
 
 const loading = ref(true);
 const saving = ref(false);

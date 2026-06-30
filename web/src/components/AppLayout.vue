@@ -154,23 +154,23 @@
           </router-link>
 
           <template
-            v-if="collectionTypes.length > 0 || allSidebarTypes.length === 0"
+            v-if="contentNavTypes.length > 0 || allSidebarTypes.length === 0"
           >
             <div
               class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-theme-500"
             >
-              {{ t("app.nav.collections") }}
+              {{ t("app.nav.content") }}
             </div>
 
             <router-link
-              v-for="type in collectionTypes"
+              v-for="type in contentNavTypes"
               :key="type.name"
               :to="`/content/${type.name}`"
               class="nav-link"
               @click="sidebarOpen = false"
             >
               <Icon
-                :icon="type.icon || defaultCollectionIcon"
+                :icon="type.icon || defaultContentIcon(type)"
                 class="w-4 h-4 opacity-60 shrink-0"
               />
               {{ type.label }}
@@ -184,28 +184,6 @@
             >
               <Icon icon="mdi:plus" class="w-4 h-4 opacity-60 shrink-0" />
               {{ t("app.nav.addType") }}
-            </router-link>
-          </template>
-
-          <template v-if="pageTypes.length > 0">
-            <div
-              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-theme-500"
-            >
-              {{ t("app.nav.single") }}
-            </div>
-
-            <router-link
-              v-for="type in pageTypes"
-              :key="type.name"
-              :to="`/content/${type.name}`"
-              class="nav-link"
-              @click="sidebarOpen = false"
-            >
-              <Icon
-                :icon="type.icon || defaultPageIcon"
-                class="w-4 h-4 opacity-60 shrink-0"
-              />
-              {{ type.label }}
             </router-link>
           </template>
 
@@ -429,16 +407,14 @@ const allSidebarTypes = computed(() =>
     ? typesStore.list
     : (auth.user?.accessible_content_types ?? []),
 );
-const collectionTypes = computed(() =>
+const contentNavTypes = computed(() =>
   allSidebarTypes.value
-    .filter((type) => !type.singleton)
     .filter((type) => auth.can("content.read", `content:${type.name}:*`)),
 );
-const pageTypes = computed(() =>
-  allSidebarTypes.value
-    .filter((type) => type.singleton)
-    .filter((type) => auth.can("content.read", `content:${type.name}:*`)),
-);
+
+function defaultContentIcon(type) {
+  return type.singleton ? defaultPageIcon : defaultCollectionIcon;
+}
 
 onMounted(() => {
   if (auth.can("workspaces.read")) {

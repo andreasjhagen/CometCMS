@@ -262,6 +262,12 @@ const messages = {
     'webhooks.saveFailed': 'Failed to save webhooks.',
     'webhooks.runSuccess': 'Webhook #{number} ran successfully.',
     'webhooks.runFailed': 'Webhook #{number} failed.',
+    'webhooks.events.content.created': 'Content created',
+    'webhooks.events.content.updated': 'Content updated',
+    'webhooks.events.content.published': 'Content published',
+    'webhooks.events.content.unpublished': 'Content unpublished',
+    'webhooks.events.content.deleted': 'Content deleted',
+    'webhooks.events.content.restored': 'Content restored',
 
     'roles.usersTokens': 'Users',
     'roles.title': 'User Roles',

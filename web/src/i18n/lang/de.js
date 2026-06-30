@@ -262,6 +262,12 @@ const messages = {
   'webhooks.saveFailed': 'Webhooks konnten nicht gespeichert werden.',
   'webhooks.runSuccess': 'Webhook #{number} wurde erfolgreich ausgeführt.',
   'webhooks.runFailed': 'Webhook #{number} fehlgeschlagen.',
+  'webhooks.events.content.created': 'Inhalt erstellt',
+  'webhooks.events.content.updated': 'Inhalt aktualisiert',
+  'webhooks.events.content.published': 'Inhalt veröffentlicht',
+  'webhooks.events.content.unpublished': 'Inhalt unveröffentlicht',
+  'webhooks.events.content.deleted': 'Inhalt gelöscht',
+  'webhooks.events.content.restored': 'Inhalt wiederhergestellt',
 
   'roles.usersTokens': 'Benutzer',
   'roles.title': 'Benutzerrollen',
