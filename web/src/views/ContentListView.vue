@@ -228,6 +228,38 @@
         @confirm="applyBulkDelete"
       />
 
+      <div
+        class="mb-3 px-1 flex items-center justify-between text-sm text-slate-500"
+      >
+        <span>
+          {{ t("contentList.showingPrefix") }} {{ pageStart }}-<InlinePageSizeSelect
+            v-model="pageSize"
+            :display-value="pageEnd"
+            :options="pageSizeOptions"
+            :aria-label="t('contentList.rowsPerPage')"
+            @change="changePageSize"
+          />
+          {{ t("contentList.showingOf") }} {{ totalEntries }}
+          {{ entryLabel(totalEntries) }}
+        </span>
+        <div class="flex gap-2">
+          <button
+            :disabled="!canPageBackward"
+            @click="changePage(-1)"
+            class="btn-secondary py-1 px-3 disabled:opacity-40"
+          >
+            {{ t("contentList.prev") }}
+          </button>
+          <button
+            :disabled="!canPageForward"
+            @click="changePage(1)"
+            class="btn-secondary py-1 px-3 disabled:opacity-40"
+          >
+            {{ t("contentList.next") }}
+          </button>
+        </div>
+      </div>
+
       <div class="card overflow-hidden mb-3">
         <div class="overflow-x-auto">
           <table class="min-w-full">
@@ -536,7 +568,7 @@
       </div>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between text-sm text-slate-500">
+      <div class="flex px-1 items-center justify-between text-sm text-slate-500">
         <span>
           {{ t("contentList.showingPrefix") }} {{ pageStart }}-<InlinePageSizeSelect
             v-model="pageSize"
