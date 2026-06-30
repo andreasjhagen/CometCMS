@@ -149,6 +149,13 @@ final class CometCMS_Migrator_Admin
                         </td>
                     </tr>
                     <tr>
+                        <th scope="row"><?php esc_html_e('ACF fields', 'cometcms-migrator'); ?></th>
+                        <td>
+                            <label><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[migrate_acf]" value="1" <?php checked(!empty($settings['migrate_acf'])); ?>> <?php esc_html_e('Import Advanced Custom Fields values and add missing CometCMS schema fields', 'cometcms-migrator'); ?></label>
+                            <p class="description"><?php esc_html_e('Simple ACF fields are mapped to native CometCMS fields. Complex ACF Pro fields such as repeaters and flexible content are stored as JSON.', 'cometcms-migrator'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
                         <th scope="row"><label for="cometcms-batch-size"><?php esc_html_e('Batch size', 'cometcms-migrator'); ?></label></th>
                         <td><input id="cometcms-batch-size" type="number" min="1" max="50" name="<?php echo esc_attr(self::OPTION); ?>[batch_size]" value="<?php echo esc_attr((string) $settings['batch_size']); ?>"></td>
                     </tr>
