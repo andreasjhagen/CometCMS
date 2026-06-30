@@ -225,6 +225,34 @@
         </h2>
 
         <div class="grid grid-cols-2 gap-4">
+
+          <div class="col-span-1">
+            <label class="form-label">{{ t("contentEdit.title") }}</label>
+            <input
+              v-model="form.title"
+              type="text"
+              required
+              :readonly="isReadOnly"
+              class="form-input w-full rounded-lg border-slate-300 text-sm"
+            />
+          </div>
+
+          <div v-if="!isSingleton">
+            <label class="form-label">
+              Slug
+              <span class="text-slate-400 font-normal text-xs ml-1">{{
+                t("contentEdit.slugShared")
+              }}</span>
+            </label>
+            <input
+              v-model="form.slug"
+              type="text"
+              :readonly="isReadOnly"
+              class="form-input w-full rounded-lg border-slate-300 text-sm"
+            />
+          </div>
+
+
           <div>
             <label class="form-label">{{ t("contentEdit.status") }}</label>
             <select
@@ -268,37 +296,6 @@
             </select>
           </div>
 
-          <div class="col-span-2">
-            <label class="form-label">{{ t("contentEdit.title") }}</label>
-            <input
-              v-model="form.title"
-              type="text"
-              required
-              :readonly="isReadOnly"
-              class="form-input w-full rounded-lg border-slate-300 text-sm"
-            />
-          </div>
-
-          <div v-if="!isSingleton">
-            <label class="form-label">
-              Slug
-              <span class="text-slate-400 font-normal ml-1">{{
-                t("contentEdit.slugGenerated")
-              }}</span>
-            </label>
-            <input
-              v-model="form.slug"
-              type="text"
-              :readonly="isReadOnly"
-              class="form-input w-full rounded-lg border-slate-300 text-sm"
-            />
-            <p
-              v-if="contentTypeLocales.length > 0"
-              class="mt-1 text-xs text-slate-500"
-            >
-              {{ t("contentEdit.slugShared") }}
-            </p>
-          </div>
 
           <div>
             <label class="form-label">

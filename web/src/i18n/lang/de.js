@@ -472,7 +472,7 @@ const messages = {
   'contentEdit.select': '- auswählen -',
   'contentEdit.title': 'Titel',
   'contentEdit.slugGenerated': '(wird aus dem Titel generiert, wenn leer)',
-  'contentEdit.slugShared': 'Der Slug wird über alle Locales geteilt.',
+  'contentEdit.slugShared': '(Der Slug wird über alle Locales geteilt)',
   'contentEdit.scheduledFor': 'Geplant für',
   'contentEdit.autoPublishes': '(veröffentlicht automatisch zu diesem Datum)',
   'contentEdit.publishedAt': 'Veröffentlicht am',

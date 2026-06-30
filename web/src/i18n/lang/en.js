@@ -471,7 +471,7 @@ const messages = {
     'contentEdit.select': '- select -',
     'contentEdit.title': 'Title',
     'contentEdit.slugGenerated': '(generated from title if empty)',
-    'contentEdit.slugShared': 'Slug is shared across all locales.',
+    'contentEdit.slugShared': '(Slug is shared across all locales)',
     'contentEdit.scheduledFor': 'Scheduled for',
     'contentEdit.autoPublishes': '(auto-publishes at this date)',
     'contentEdit.publishedAt': 'Published at',
