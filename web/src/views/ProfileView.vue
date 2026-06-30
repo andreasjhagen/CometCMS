@@ -68,18 +68,28 @@
           </div>
           <div>
             <label class="form-label">{{ t("profile.theme") }}</label>
-            <select
-              v-model="profileForm.theme"
-              class="form-select w-full rounded-lg border-slate-300 text-sm"
-            >
-              <option
-                v-for="theme in THEMES"
-                :key="theme.value"
-                :value="theme.value"
-              >
-                {{ t(`theme.${theme.value}`) }}
-              </option>
-            </select>
+            <div class="flex items-center gap-3">
+              <div class="flex gap-2">
+                <button
+                  v-for="theme in THEMES"
+                  :key="theme.value"
+                  type="button"
+                  @click="profileForm.theme = theme.value"
+                  :class="[
+                    'h-8 w-8 rounded-full border-2 transition-all',
+                    themeColors[theme.value],
+                    profileForm.theme === theme.value
+                      ? 'border-slate-900 scale-110 shadow-md'
+                      : 'border-transparent hover:border-slate-300',
+                  ]"
+                  :aria-label="t(`theme.${theme.value}`)"
+                  :title="t(`theme.${theme.value}`)"
+                />
+              </div>
+              <span class="text-sm text-slate-600">
+                {{ t(`theme.${profileForm.theme}`) }}
+              </span>
+            </div>
           </div>
           <div>
             <label class="form-label">{{ t("profile.language") }}</label>
@@ -193,6 +203,15 @@ import { useAuthStore } from "../stores/auth.js";
 import { useToastStore } from "../stores/toast.js";
 import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { applyTheme, DEFAULT_THEME, THEMES } from "../theme.js";
+
+const themeColors = {
+  blue: "bg-blue-500",
+  green: "bg-green-500",
+  purple: "bg-purple-500",
+  orange: "bg-orange-500",
+  cyan: "bg-cyan-500",
+  dark: "bg-slate-800",
+};
 import { DEFAULT_ADMIN_LOCALE, setLocale, useI18n } from "../i18n/index.js";
 import { userAdminEndpoint } from "../composables/apiEndpoint.js";
 
