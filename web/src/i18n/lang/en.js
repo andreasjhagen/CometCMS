@@ -289,6 +289,7 @@ const messages = {
     'users.rolePreset': 'Role preset',
     'users.create': 'Create',
     'users.edit': 'Edit',
+    'users.myProfile': 'My profile',
     'users.delete': 'Delete',
     'users.editUser': 'Edit user',
     'users.displayName': 'Display name',

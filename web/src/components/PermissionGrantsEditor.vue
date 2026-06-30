@@ -1,21 +1,31 @@
 <template>
-  <div class="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
-    <div class="grid gap-3 md:grid-cols-3">
-      <div>
-        <label class="text-xs text-slate-500 block mb-0.5">Area</label>
-        <select
-          v-model="selectedArea"
-          class="form-select w-full rounded-lg border-slate-300 text-xs"
-          @change="emitChange"
+  <div class="rounded-lg border border-slate-200 bg-white p-4 space-y-4">
+    <div>
+      <label class="text-xs font-medium text-slate-500 block mb-1">Area</label>
+      <div
+        class="grid overflow-hidden rounded-lg border border-slate-200 bg-slate-50 sm:grid-cols-3 lg:grid-cols-6"
+      >
+        <button
+          v-for="area in areaOptions"
+          :key="area.value"
+          type="button"
+          class="min-h-9 border-slate-200 px-3 py-2 text-xs font-medium transition-colors sm:border-r lg:last:border-r-0"
+          :class="
+            selectedArea === area.value
+              ? 'bg-white text-theme-700 shadow-sm'
+              : 'text-slate-600 hover:bg-white hover:text-slate-900'
+          "
+          @click="selectArea(area.value)"
         >
-          <option value="system">System</option>
-          <option value="schema">Content types</option>
-          <option value="content">Content</option>
-          <option value="media">Media</option>
-          <option value="users">Users & tokens</option>
-          <option value="all">Everything</option>
-        </select>
+          {{ area.label }}
+        </button>
       </div>
+    </div>
+
+    <div
+      v-if="selectedArea !== 'all'"
+      class="grid gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-3"
+    >
 
       <div v-if="selectedArea === 'content' || selectedArea === 'schema'">
         <label class="text-xs text-slate-500 block mb-0.5">Content type</label>
@@ -70,7 +80,7 @@
       </div>
 
       <div v-if="selectedArea === 'system'">
-        <label class="text-xs text-slate-500 block mb-0.5">Resource</label>
+        <label class="text-xs text-slate-500 block mb-0.5">System section</label>
         <select
           v-model="selectedSystemResource"
           class="form-select w-full rounded-lg border-slate-300 text-xs"
@@ -124,10 +134,20 @@
 
     <!-- Per-action checkboxes for all other areas -->
     <div v-else>
-      <label class="text-xs text-slate-500 block mb-1">Actions</label>
+      <div class="mb-1 flex items-center justify-between gap-3">
+        <label class="text-xs font-medium text-slate-500">Actions</label>
+        <button
+          v-if="currentVisibleActions.length > 1"
+          type="button"
+          class="text-xs font-medium text-theme-700 hover:text-theme-800"
+          @click="toggleAllCurrentActions"
+        >
+          {{ allVisibleActionsSelected ? "Clear all" : "Select all" }}
+        </button>
+      </div>
       <div class="flex flex-wrap gap-2">
         <label
-          v-for="action in actionsFor(selectedArea)"
+          v-for="action in currentVisibleActions"
           :key="action.value"
           class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs cursor-pointer select-none transition-colors"
           :class="
@@ -146,6 +166,13 @@
           {{ action.label }}
         </label>
       </div>
+      <p
+        v-if="hiddenActionLabels.length > 0"
+        class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800"
+      >
+        Saved on this resource but hidden here: {{ hiddenActionLabels.join(", ") }}.
+        Change the action selection to clean this grant.
+      </p>
     </div>
 
     <div v-if="selectedArea === 'content'" class="grid gap-3 md:grid-cols-3">
@@ -205,7 +232,9 @@
       selected content type.
     </p>
 
-    <p class="text-xs text-slate-400 truncate">{{ summary }}</p>
+    <p class="rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-500">
+      {{ summary }}
+    </p>
   </div>
 </template>
 
@@ -247,6 +276,15 @@ const currentOwnOnly = ref(false);
 const entriesByCollection = ref({});
 const entryLoadState = ref({});
 let lastEmitted = "";
+
+const areaOptions = [
+  { value: "system", label: "System" },
+  { value: "schema", label: "Content types" },
+  { value: "content", label: "Content" },
+  { value: "media", label: "Media" },
+  { value: "users", label: "Users & tokens" },
+  { value: "all", label: "Everything" },
+];
 
 const actionGroups = {
   all: [{ value: "*", label: "Everything" }],
@@ -305,6 +343,33 @@ const actionGroups = {
 };
 
 const currentKey = computed(() => stateKeyForCurrentSelection());
+
+const currentVisibleActions = computed(() => actionsFor(selectedArea.value));
+
+const currentVisibleActionValues = computed(() =>
+  currentVisibleActions.value.map((action) => action.value),
+);
+
+const allVisibleActionsSelected = computed(
+  () =>
+    currentVisibleActions.value.length > 0 &&
+    currentVisibleActionValues.value.every((action) =>
+      currentActions.value.includes(action),
+    ),
+);
+
+const hiddenActionLabels = computed(() => {
+  const visible = new Set(currentVisibleActionValues.value);
+  const labels = Object.fromEntries(
+    Object.values(actionGroups)
+      .flat()
+      .map((action) => [action.value, action.label]),
+  );
+
+  return currentActions.value
+    .filter((action) => !visible.has(action))
+    .map((action) => labels[action] ?? action);
+});
 
 const fieldsForCurrentContentType = computed(() => {
   if (selectedArea.value !== "content" || selectedCollection.value === "*")
@@ -388,8 +453,39 @@ onMounted(async () => {
   }
 });
 
+function selectArea(area) {
+  if (selectedArea.value === area) return;
+  selectedArea.value = area;
+  emitChange();
+}
+
 function actionsFor(area) {
+  if (area === "system") return systemActionsForResource();
   return actionGroups[area] ?? actionGroups.content;
+}
+
+function systemActionsForResource() {
+  const resource = selectedSystemResource.value;
+  if (resource === "dashboard:*") return actionGroups.system.slice(0, 1);
+  if (resource === "activity:*") return actionGroups.system.slice(1, 2);
+  if (resource === "backups:*")
+    return actionGroups.system.filter((action) =>
+      action.value.startsWith("backups."),
+    );
+  if (resource === "webhooks:*")
+    return actionGroups.system.filter((action) =>
+      action.value.startsWith("webhooks."),
+    );
+  if (resource.startsWith("workspaces:"))
+    return actionGroups.system.filter((action) =>
+      action.value.startsWith("workspaces."),
+    );
+  if (resource === "updates:*")
+    return actionGroups.system.filter((action) =>
+      action.value.startsWith("updates."),
+    );
+
+  return actionGroups.system;
 }
 
 const bulkAreaGroups = [
@@ -444,7 +540,18 @@ function toggleAreaAllGrants(area) {
 }
 
 function setCurrentActions() {
+  const allowed = new Set(currentVisibleActionValues.value);
+  currentActions.value = currentActions.value.filter((action) =>
+    allowed.has(action),
+  );
   setCurrentState({ actions: [...currentActions.value] });
+}
+
+function toggleAllCurrentActions() {
+  currentActions.value = allVisibleActionsSelected.value
+    ? []
+    : [...currentVisibleActionValues.value];
+  setCurrentActions();
 }
 
 function setCurrentFields() {
