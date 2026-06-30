@@ -127,6 +127,7 @@ const SUPPORTED_TYPES = new Set([
   "text",
   "slug",
   "textarea",
+  "html",
   "number",
   "range",
   "boolean",

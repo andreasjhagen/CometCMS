@@ -7,6 +7,7 @@ use CometCMS\Fields\BooleanFieldType;
 use CometCMS\Fields\ColorFieldType;
 use CometCMS\Fields\DateFieldType;
 use CometCMS\Fields\DateTimeFieldType;
+use CometCMS\Fields\HtmlFieldType;
 use CometCMS\Fields\JsonFieldType;
 use CometCMS\Fields\MediaFieldType;
 use CometCMS\Fields\NumberFieldType;
@@ -26,6 +27,7 @@ test('field registry exposes built-in field types', function (): void {
             'text',
             'textarea',
             'markdown',
+            'html',
             'number',
             'range',
             'boolean',
@@ -149,6 +151,21 @@ test('json fields validate and normalize json values', function (): void {
     assert_false($field->validate('{"ok":', [])['valid']);
     assert_same(['ok' => true], $field->normalize('{"ok":true}', []));
     assert_same(['ok' => true], $field->normalize(['ok' => true], []));
+});
+
+test('html fields sanitize unsafe markup', function (): void {
+    $field = new HtmlFieldType();
+    $html = $field->normalize(
+        '<p onclick="alert(1)">Hello <strong>world</strong><script>alert(1)</script></p><a href="javascript:alert(1)" title="Bad">bad</a><a href="https://example.com" target="_blank" title="Safe">link</a>',
+        []
+    );
+
+    assert_false(str_contains($html, 'onclick'));
+    assert_false(str_contains($html, '<script'));
+    assert_false(str_contains($html, 'javascript:'));
+    assert_true(str_contains($html, '<strong>world</strong>'));
+    assert_true(str_contains($html, 'href="https://example.com"'));
+    assert_true(str_contains($html, 'rel="noopener noreferrer"'));
 });
 
 test('relation fields validate target collection lookup', function (): void {

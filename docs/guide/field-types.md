@@ -2,7 +2,7 @@
 
 Each field in a content type has a `type` that controls how it is edited in the admin panel and how its value is stored.
 
-Supported fields can include a `default` option. Defaults pre-fill new entries in the admin editor and are also applied when entries are created through the API with that field omitted. Defaults are supported for `text`, `textarea`, `markdown`, `number`, `range`, `boolean`, `select`, `date`, `datetime`, `json`, and `color` fields.
+Supported fields can include a `default` option. Defaults pre-fill new entries in the admin editor and are also applied when entries are created through the API with that field omitted. Defaults are supported for `text`, `textarea`, `markdown`, `html`, `number`, `range`, `boolean`, `select`, `date`, `datetime`, `json`, and `color` fields.
 
 ## Text fields
 
@@ -28,6 +28,14 @@ Supports `default`.
 ### `markdown`
 
 A rich Markdown editor with a live preview pane. The value is stored as a Markdown string.
+
+Supports `default`.
+
+---
+
+### `html`
+
+A rich HTML editor with visual and raw HTML modes. The value is stored as a sanitized HTML string. Unsupported tags and unsafe attributes such as scripts, inline event handlers, inline styles, and `javascript:` URLs are removed when content is saved.
 
 Supports `default`.
 

@@ -123,6 +123,7 @@ const SUB_FIELD_TYPES = [
   "relation",
   "slug",
   "markdown",
+  "html",
   "json",
   "color",
   "range",

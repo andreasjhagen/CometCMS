@@ -2,6 +2,7 @@ const SUPPORTED_DEFAULT_TYPES = new Set([
   'text',
   'textarea',
   'markdown',
+  'html',
   'number',
   'range',
   'boolean',

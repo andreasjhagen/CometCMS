@@ -9,6 +9,7 @@ import {
 describe('fieldDefaults', () => {
   it('detects field types that support configured defaults', () => {
     expect(supportsConfiguredDefault({ type: 'text' })).toBe(true)
+    expect(supportsConfiguredDefault({ type: 'html' })).toBe(true)
     expect(supportsConfiguredDefault({ type: 'media' })).toBe(false)
     expect(hasConfiguredDefault({ type: 'text', default: 'Hello' })).toBe(true)
     expect(hasConfiguredDefault({ type: 'media', default: [] })).toBe(false)

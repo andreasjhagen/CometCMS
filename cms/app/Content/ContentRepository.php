@@ -1104,6 +1104,7 @@ final class ContentRepository
             'text',
             'textarea',
             'markdown',
+            'html',
             'number',
             'range',
             'boolean',
@@ -1345,7 +1346,7 @@ final class ContentRepository
         $searchFields = ['title', 'slug', 'summary'];
 
         foreach ($schema['fields'] ?? [] as $name => $config) {
-            if (in_array($config['type'] ?? '', ['text', 'textarea', 'markdown'], true)) {
+            if (in_array($config['type'] ?? '', ['text', 'textarea', 'markdown', 'html'], true)) {
                 $searchFields[] = $name;
             }
         }

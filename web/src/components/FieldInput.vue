@@ -35,6 +35,12 @@
       v-html="readonlyMarkdownHtml"
     ></div>
 
+    <div
+      v-else-if="config.type === 'html'"
+      class="prose-preview"
+      v-html="readonlyHtml"
+    ></div>
+
     <pre
       v-else-if="config.type === 'json'"
       class="whitespace-pre-wrap break-words font-mono text-xs"
@@ -149,18 +155,18 @@
     @input="$emit('update:modelValue', $event.target.value)"
   />
 
-  <!-- markdown -->
-  <div v-else-if="config.type === 'markdown'" class="space-y-1.5">
+  <!-- markdown / html -->
+  <div v-else-if="['markdown', 'html'].includes(config.type)" class="space-y-1.5">
     <div class="flex items-center justify-end gap-1">
       <button
         type="button"
         class="text-xs px-2.5 py-1 rounded-md border transition-colors"
         :class="
-          markdownMode === 'visual'
+          richTextMode === 'visual'
             ? 'border-theme-400 bg-theme-50 text-theme-700 font-medium'
             : 'border-slate-200 text-slate-500 hover:border-slate-300'
         "
-        @click="setMarkdownMode('visual')"
+        @click="setRichTextMode('visual')"
       >
         Visual
       </button>
@@ -168,18 +174,18 @@
         type="button"
         class="text-xs px-2.5 py-1 rounded-md border transition-colors"
         :class="
-          markdownMode === 'raw'
+          richTextMode === 'raw'
             ? 'border-theme-400 bg-theme-50 text-theme-700 font-medium'
             : 'border-slate-200 text-slate-500 hover:border-slate-300'
         "
-        @click="setMarkdownMode('raw')"
+        @click="setRichTextMode('raw')"
       >
         Raw
       </button>
     </div>
 
     <textarea
-      v-if="markdownMode === 'raw'"
+      v-if="richTextMode === 'raw'"
       :name="name"
       :value="modelValue ?? ''"
       rows="10"
@@ -731,6 +737,40 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
+const ALLOWED_HTML_TAGS = {
+  a: ["href", "title", "target", "rel"],
+  blockquote: [],
+  br: [],
+  code: [],
+  div: ["class"],
+  em: [],
+  h1: [],
+  h2: [],
+  h3: [],
+  h4: [],
+  h5: [],
+  h6: [],
+  hr: [],
+  img: ["src", "alt", "title", "width", "height"],
+  li: [],
+  ol: [],
+  p: [],
+  pre: [],
+  s: [],
+  span: ["class"],
+  strong: [],
+  table: [],
+  tbody: [],
+  td: [],
+  th: [],
+  thead: [],
+  tr: [],
+  u: [],
+  ul: [],
+};
+
+const DROP_HTML_TAGS = new Set(["iframe", "object", "script", "style"]);
+
 const props = defineProps({
   name: { type: String, required: true },
   config: { type: Object, required: true },
@@ -745,54 +785,165 @@ const mediaUploading = ref(false);
 const mediaDragDepth = ref(0);
 const isMediaDropActive = computed(() => mediaDragDepth.value > 0);
 
-// ---- Markdown visual editor ----
-const markdownMode = ref("visual");
+// ---- Rich text visual editor ----
+const richTextMode = ref("visual");
+
+const isRichTextField = computed(() =>
+  ["markdown", "html"].includes(props.config.type),
+);
 
 function markdownToHtml(value) {
   return marked.parse(String(value ?? ""), { async: false });
 }
 
-function editorMarkdownValue() {
-  return turndown.turndown(editor.value?.getHTML() ?? "");
+function sanitizeHtml(value) {
+  const html = String(value ?? "");
+
+  if (html.trim() === "" || typeof document === "undefined") {
+    return html.trim();
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  sanitizeHtmlChildren(template.content);
+
+  return template.innerHTML.trim();
+}
+
+function sanitizeHtmlChildren(node) {
+  Array.from(node.childNodes).forEach((child) => sanitizeHtmlNode(child));
+}
+
+function sanitizeHtmlNode(node) {
+  if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+  const tag = node.tagName.toLowerCase();
+
+  if (DROP_HTML_TAGS.has(tag)) {
+    node.remove();
+    return;
+  }
+
+  sanitizeHtmlChildren(node);
+
+  if (!Object.prototype.hasOwnProperty.call(ALLOWED_HTML_TAGS, tag)) {
+    node.replaceWith(...Array.from(node.childNodes));
+    return;
+  }
+
+  const allowedAttributes = ALLOWED_HTML_TAGS[tag];
+
+  Array.from(node.attributes).forEach((attribute) => {
+    const name = attribute.name.toLowerCase();
+
+    if (
+      !allowedAttributes.includes(name) ||
+      !isSafeHtmlAttributeValue(tag, name, attribute.value)
+    ) {
+      node.removeAttribute(attribute.name);
+    }
+  });
+
+  if (tag === "a" && node.getAttribute("target")?.toLowerCase() === "_blank") {
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+}
+
+function isSafeHtmlAttributeValue(tag, name, value) {
+  const trimmed = String(value ?? "").trim();
+
+  if (name === "href" || name === "src") {
+    return isSafeHtmlUrl(trimmed);
+  }
+
+  if (name === "target") {
+    return ["_blank", "_self", "_parent", "_top"].includes(trimmed);
+  }
+
+  if (tag === "img" && ["width", "height"].includes(name)) {
+    return /^\d{1,4}$/.test(trimmed);
+  }
+
+  return true;
+}
+
+function isSafeHtmlUrl(url) {
+  if (
+    url === "" ||
+    url.startsWith("#") ||
+    url.startsWith("/") ||
+    url.startsWith("./") ||
+    url.startsWith("../")
+  ) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return ["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function richTextToEditorHtml(value) {
+  if (props.config.type === "html") {
+    return sanitizeHtml(value);
+  }
+
+  return sanitizeHtml(markdownToHtml(value));
+}
+
+function editorStoredValue() {
+  const html = sanitizeHtml(editor.value?.getHTML() ?? "");
+
+  if (props.config.type === "html") {
+    return html;
+  }
+
+  return turndown.turndown(html);
 }
 
 const editor = useEditor({
   extensions: [StarterKit],
   content: "",
   onCreate({ editor }) {
-    if (props.config.type !== "markdown") return;
-    const html = markdownToHtml(props.modelValue);
+    if (!isRichTextField.value) return;
+    const html = richTextToEditorHtml(props.modelValue);
     editor.commands.setContent(html, false);
   },
   onUpdate({ editor }) {
-    if (props.config.type !== "markdown") return;
-    if (markdownMode.value === "visual") {
-      const markdown = turndown.turndown(editor.getHTML());
-      if (markdown !== String(props.modelValue ?? "")) {
-        emit("update:modelValue", markdown);
+    if (!isRichTextField.value) return;
+    if (richTextMode.value === "visual") {
+      const value =
+        props.config.type === "html"
+          ? sanitizeHtml(editor.getHTML())
+          : turndown.turndown(sanitizeHtml(editor.getHTML()));
+      if (value !== String(props.modelValue ?? "")) {
+        emit("update:modelValue", value);
       }
     }
   },
 });
 
-function setMarkdownMode(mode) {
-  if (props.config.type !== "markdown") return;
-  if (mode === markdownMode.value) return;
+function setRichTextMode(mode) {
+  if (!isRichTextField.value) return;
+  if (mode === richTextMode.value) return;
   if (mode === "visual") {
-    const html = markdownToHtml(props.modelValue);
+    const html = richTextToEditorHtml(props.modelValue);
     editor.value?.commands.setContent(html, false);
   }
-  markdownMode.value = mode;
+  richTextMode.value = mode;
 }
 
 watch(
   () => props.modelValue,
   (val) => {
-    if (props.config.type !== "markdown") return;
-    if (markdownMode.value !== "visual") return;
-    const markdown = String(val ?? "");
-    if (editorMarkdownValue() !== markdown) {
-      const html = markdownToHtml(markdown);
+    if (!isRichTextField.value) return;
+    if (richTextMode.value !== "visual") return;
+    const value = String(val ?? "");
+    if (editorStoredValue() !== value) {
+      const html = richTextToEditorHtml(value);
       editor.value?.commands.setContent(html, false);
     }
   },
@@ -867,8 +1018,10 @@ const isEmptyValue = computed(() => {
 });
 
 const readonlyMarkdownHtml = computed(() =>
-  markdownToHtml(props.modelValue),
+  sanitizeHtml(markdownToHtml(props.modelValue)),
 );
+
+const readonlyHtml = computed(() => sanitizeHtml(props.modelValue));
 
 const rangeMin = computed(() => numberOr(props.config.min, 0));
 const rangeMax = computed(() =>

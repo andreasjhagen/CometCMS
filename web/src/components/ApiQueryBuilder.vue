@@ -1164,6 +1164,7 @@ function fieldKind(type) {
     "text",
     "slug",
     "textarea",
+    "html",
     "number",
     "range",
     "boolean",

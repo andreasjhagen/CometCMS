@@ -30,6 +30,7 @@ final class FieldRegistry
         $registry->register('text', new TextFieldType());
         $registry->register('textarea', new TextareaFieldType());
         $registry->register('markdown', new MarkdownFieldType());
+        $registry->register('html', new HtmlFieldType());
         $registry->register('number', new NumberFieldType());
         $registry->register('range', new RangeFieldType());
         $registry->register('boolean', new BooleanFieldType());

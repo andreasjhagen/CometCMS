@@ -3,6 +3,7 @@ const FIELD_TYPE_ICONS = {
   slug: 'mdi:link-variant',
   textarea: 'mdi:text-box-outline',
   markdown: 'mdi:language-markdown-outline',
+  html: 'mdi:language-html5',
   number: 'mdi:numeric',
   range: 'mdi:tune-variant',
   boolean: 'mdi:toggle-switch-outline',

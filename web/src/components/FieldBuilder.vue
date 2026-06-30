@@ -315,7 +315,7 @@
 
           <div v-if="hasFieldDefault(field)" class="max-w-2xl">
             <textarea
-              v-if="['textarea', 'markdown'].includes(field.type)"
+              v-if="['textarea', 'markdown', 'html'].includes(field.type)"
               :value="field.default ?? ''"
               rows="3"
               class="form-textarea w-full rounded-lg border-slate-300 text-sm"
@@ -1035,7 +1035,7 @@ function isKeyRenamed(field) {
 
 // Type groups whose members are interchangeable without data loss.
 const losslessTypeGroups = [
-  new Set(["text", "textarea", "markdown"]),
+  new Set(["text", "textarea", "markdown", "html"]),
   new Set(["number", "range"]),
 ];
 
