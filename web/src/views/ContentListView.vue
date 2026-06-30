@@ -207,12 +207,7 @@
               <Icon icon="mdi:trash-can-outline" class="w-4 h-4" />
             </button>
           </div>
-          <p
-            v-if="selectAllPages"
-            class="mt-1.5 text-xs text-theme-600 font-medium"
-          >
-            {{ t("contentList.allPagesTrash", { count: totalEntries }) }}
-          </p>
+
         </div>
       </Transition>
 
