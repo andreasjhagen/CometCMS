@@ -52,5 +52,6 @@ Native mappings:
 - date and date-time pickers -> `date` / `datetime`
 - color picker -> `color`
 - image, file, and gallery -> `media`
+- repeater -> `repeater` with mapped subfields
 
-Complex ACF/ACF Pro fields such as repeater, flexible content, group, clone, relationship, post object, taxonomy, user, and link are stored as `json`.
+Flexible content, group, clone, relationship, post object, taxonomy, user, and link are stored as `json`.

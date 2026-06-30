@@ -401,6 +401,19 @@ final class CometCMS_Migrator
         $type = (string) ($field['type'] ?? 'text');
         $label = trim((string) ($field['label'] ?? $field['name'] ?? ''));
 
+        if ($type === 'repeater') {
+            $subfields = $this->acf_repeater_subfields($field);
+            $schema = $subfields !== []
+                ? ['type' => 'repeater', 'subfields' => $subfields]
+                : ['type' => 'json'];
+
+            if ($label !== '') {
+                $schema['label'] = $label;
+            }
+
+            return $schema;
+        }
+
         $schema = match ($type) {
             'textarea', 'wysiwyg' => ['type' => 'textarea'],
             'number' => ['type' => 'number'],
@@ -421,8 +434,65 @@ final class CometCMS_Migrator
             'color_picker' => ['type' => 'color'],
             'image', 'file' => ['type' => 'media', 'multiple' => false],
             'gallery' => ['type' => 'media', 'multiple' => true],
-            'repeater', 'flexible_content', 'group', 'clone', 'relationship', 'post_object', 'page_link', 'taxonomy', 'user', 'link' => ['type' => 'json'],
+            'flexible_content', 'group', 'clone', 'relationship', 'post_object', 'page_link', 'taxonomy', 'user', 'link' => ['type' => 'json'],
             default => ['type' => 'text'],
+        };
+
+        if ($label !== '') {
+            $schema['label'] = $label;
+        }
+
+        return $schema;
+    }
+
+    private function acf_repeater_subfields(array $field): array
+    {
+        $subfields = [];
+
+        foreach (is_array($field['sub_fields'] ?? null) ? $field['sub_fields'] : [] as $subfield) {
+            if (!is_array($subfield)) {
+                continue;
+            }
+
+            $key = sanitize_key((string) ($subfield['name'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+
+            $schema = $this->acf_repeater_subfield_schema($subfield);
+            $schema['key'] = $key;
+            $subfields[] = $schema;
+        }
+
+        return $subfields;
+    }
+
+    private function acf_repeater_subfield_schema(array $field): array
+    {
+        $type = (string) ($field['type'] ?? 'text');
+        $label = trim((string) ($field['label'] ?? $field['name'] ?? ''));
+
+        $schema = match ($type) {
+            'textarea', 'wysiwyg' => ['type' => 'textarea'],
+            'number' => ['type' => 'number'],
+            'range' => array_filter([
+                'type' => 'range',
+                'min' => is_numeric($field['min'] ?? null) ? (float) $field['min'] : null,
+                'max' => is_numeric($field['max'] ?? null) ? (float) $field['max'] : null,
+                'step' => is_numeric($field['step'] ?? null) ? (float) $field['step'] : null,
+            ], static fn(mixed $value): bool => $value !== null),
+            'true_false' => ['type' => 'boolean'],
+            'select', 'radio', 'button_group', 'checkbox' => [
+                'type' => 'select',
+                'multiple' => $type === 'checkbox' || !empty($field['multiple']),
+                'options' => $this->acf_select_options($field),
+            ],
+            'date_picker' => ['type' => 'date'],
+            'date_time_picker' => ['type' => 'datetime'],
+            'color_picker' => ['type' => 'color'],
+            'image', 'file' => ['type' => 'media', 'multiple' => false],
+            'gallery' => ['type' => 'media', 'multiple' => true],
+            default => ['type' => in_array($type, ['flexible_content', 'repeater', 'group', 'clone', 'relationship', 'post_object', 'page_link', 'taxonomy', 'user', 'link'], true) ? 'json' : 'text'],
         };
 
         if ($label !== '') {
@@ -462,9 +532,54 @@ final class CometCMS_Migrator
             'date_time_picker' => $this->acf_datetime_value($value),
             'image', 'file' => $this->acf_media_value($value, false),
             'gallery' => $this->acf_media_value($value, true),
-            'repeater', 'flexible_content', 'group', 'clone', 'relationship', 'post_object', 'page_link', 'taxonomy', 'user', 'link' => $this->acf_json_value($value),
+            'repeater' => $this->acf_repeater_value($value, $field),
+            'flexible_content', 'group', 'clone', 'relationship', 'post_object', 'page_link', 'taxonomy', 'user', 'link' => $this->acf_json_value($value),
             default => is_scalar($value) || $value === null ? $value : $this->acf_json_value($value),
         };
+    }
+
+    private function acf_repeater_value(mixed $value, array $field): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $subfields = is_array($field['sub_fields'] ?? null) ? $field['sub_fields'] : [];
+
+        if ($subfields === []) {
+            return array_values(array_filter(array_map(
+                fn(mixed $row): mixed => $this->acf_json_value($row),
+                $value
+            ), 'is_array'));
+        }
+
+        $rows = [];
+
+        foreach ($value as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $mapped = [];
+
+            foreach ($subfields as $subfield) {
+                if (!is_array($subfield)) {
+                    continue;
+                }
+
+                $name = (string) ($subfield['name'] ?? '');
+                $key = sanitize_key($name);
+                if ($key === '') {
+                    continue;
+                }
+
+                $mapped[$key] = $this->acf_field_value($row[$name] ?? $row[$key] ?? null, $subfield);
+            }
+
+            $rows[] = $mapped;
+        }
+
+        return $rows;
     }
 
     private function acf_media_value(mixed $value, bool $multiple): array
