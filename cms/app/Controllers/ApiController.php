@@ -94,9 +94,9 @@ final class ApiController
 
     public function contentTypeStore(): never
     {
-        $user = $this->requireToken('schema.create', ['type' => 'schema', 'name' => $name]);
         $body = $this->http->requestJson();
         $name = Security::slug((string) ($body['name'] ?? ''));
+        $user = $this->requireToken('schema.create', ['type' => 'schema', 'name' => $name]);
 
         if (!empty($body['singleton']) && $name !== '' && count($this->content->all($name)) > 1) {
             $this->response->error('validation_failed', 'Single page content types can only be enabled when there is at most one active entry.', 422);
