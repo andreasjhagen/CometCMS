@@ -49,16 +49,16 @@
 
     <div v-else-if="config.type === 'media'" class="space-y-2">
       <div class="flex flex-wrap gap-2">
-        <a
+        <div
           v-for="file in mediaValues"
           :key="file"
-          :href="mediaUrl(file)"
-          target="_blank"
-          rel="noreferrer"
           class="inline-flex max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:border-theme-300 hover:text-theme-700"
         >
-          <span
+          <button
+            type="button"
             class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-slate-100"
+            :title="`Preview ${file}`"
+            @click="openMediaPreview(file)"
           >
             <img
               v-if="isImage(file)"
@@ -67,9 +67,15 @@
               class="h-full w-full object-cover"
             />
             <Icon v-else v-bind="getFileIcon(file)" class="h-4 w-4" />
-          </span>
-          <span class="truncate">{{ file }}</span>
-        </a>
+          </button>
+          <a
+            :href="mediaUrl(file)"
+            target="_blank"
+            rel="noreferrer"
+            class="truncate"
+            >{{ file }}</a
+          >
+        </div>
       </div>
     </div>
 
@@ -414,10 +420,13 @@
         @dragleave.prevent="onMediaDragLeave"
         @drop.prevent="onMediaDrop"
       >
-        <div
+        <button
           v-for="file in mediaPreviewTiles"
           :key="file"
+          type="button"
           class="overflow-hidden rounded-md bg-slate-200 flex items-center justify-center"
+          :title="`Preview ${file}`"
+          @click.stop="openMediaPreview(file)"
         >
           <img
             v-if="isImage(file)"
@@ -426,7 +435,7 @@
             :alt="file"
           />
           <Icon v-else v-bind="getFileIcon(file)" class="w-5 h-5" />
-        </div>
+        </button>
         <div
           v-if="mediaPreviewOverflow > 0"
           class="rounded-md bg-slate-900/75 text-white text-xs font-semibold flex items-center justify-center"
@@ -453,16 +462,26 @@
         @dragleave.prevent="onMediaDragLeave"
         @drop.prevent="onMediaDrop"
       >
-        <template v-if="mediaValues.length > 0 && isImage(mediaValues[0])">
+        <button
+          v-if="mediaValues.length > 0"
+          type="button"
+          class="h-full w-full"
+          :title="`Preview ${mediaValues[0]}`"
+          @click.stop="openMediaPreview(mediaValues[0])"
+        >
           <img
+            v-if="isImage(mediaValues[0])"
             :src="mediaUrl(mediaValues[0])"
             class="w-full h-full object-cover"
             :alt="String(mediaValues[0])"
           />
-        </template>
-        <template v-else-if="mediaValues.length > 0">
-          <Icon v-bind="getFileIcon(mediaValues[0])" class="w-8 h-8" />
-        </template>
+          <span
+            v-else
+            class="flex h-full w-full items-center justify-center"
+          >
+            <Icon v-bind="getFileIcon(mediaValues[0])" class="w-8 h-8" />
+          </span>
+        </button>
         <Icon v-else icon="mdi:image-outline" class="w-8 h-8 text-slate-400" />
       </div>
 
@@ -547,8 +566,11 @@
           icon="mdi:drag-vertical"
           class="h-4 w-4 shrink-0 cursor-grab text-slate-400 active:cursor-grabbing"
         />
-        <div
+        <button
+          type="button"
           class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-slate-100"
+          :title="`Preview ${file}`"
+          @click.stop="openMediaPreview(file)"
         >
           <img
             v-if="isImage(file)"
@@ -557,7 +579,7 @@
             class="h-full w-full object-cover"
           />
           <Icon v-else v-bind="getFileIcon(file)" class="h-4 w-4" />
-        </div>
+        </button>
         <span
           class="min-w-0 flex-1 truncate text-xs text-slate-700"
           :title="file"
@@ -716,6 +738,56 @@
     class="form-input w-full rounded-lg border-slate-300 text-sm"
     @input="$emit('update:modelValue', $event.target.value)"
   />
+
+  <div
+    v-if="mediaPreviewFile"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 px-4 py-6"
+    @click.self="closeMediaPreview"
+  >
+    <div
+      class="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+    >
+      <div class="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+          {{ mediaPreviewFile }}
+        </h2>
+        <a
+          :href="mediaPreviewUrl"
+          target="_blank"
+          rel="noreferrer"
+          class="btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+        >
+          <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+          Open
+        </a>
+        <button
+          type="button"
+          class="text-slate-400 transition-colors hover:text-slate-700"
+          title="Close"
+          @click="closeMediaPreview"
+        >
+          <Icon icon="mdi:close" class="h-5 w-5" />
+        </button>
+      </div>
+      <div class="flex min-h-0 flex-1 items-center justify-center bg-slate-950 p-4">
+        <img
+          v-if="mediaPreviewIsImage"
+          :src="mediaPreviewUrl"
+          :alt="mediaPreviewFile"
+          class="max-h-[76vh] max-w-full object-contain"
+        />
+        <div
+          v-else
+          class="flex min-h-64 w-full max-w-lg flex-col items-center justify-center gap-4 rounded-lg bg-white p-8 text-center"
+        >
+          <Icon v-bind="getFileIcon(mediaPreviewFile)" class="h-16 w-16" />
+          <p class="max-w-full truncate text-sm font-medium text-slate-700">
+            {{ mediaPreviewFile }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -749,6 +821,7 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"]);
 const pickerOpen = ref(false);
+const mediaPreviewFile = ref("");
 const mediaUploadError = ref("");
 const mediaUploading = ref(false);
 const mediaDragDepth = ref(0);
@@ -1095,6 +1168,8 @@ const mediaPreviewEmptyTiles = computed(() =>
     0,
   ),
 );
+const mediaPreviewUrl = computed(() => mediaUrl(mediaPreviewFile.value));
+const mediaPreviewIsImage = computed(() => isImage(mediaPreviewFile.value));
 const relationValue = computed(() => {
   if (props.config.multiple) {
     return normalizeChoiceValues(props.modelValue);
@@ -1117,6 +1192,14 @@ function normalizeMediaModel(value) {
 
 function mediaUrl(value) {
   return buildMediaUrl(getActiveWorkspace(), value);
+}
+
+function openMediaPreview(file) {
+  mediaPreviewFile.value = String(file ?? "").trim();
+}
+
+function closeMediaPreview() {
+  mediaPreviewFile.value = "";
 }
 
 function numberOr(value, fallback) {
