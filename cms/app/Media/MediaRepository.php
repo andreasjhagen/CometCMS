@@ -135,25 +135,7 @@ final class MediaRepository
 
     private function matchesType(string $file, string $type): bool
     {
-        if ($type === '' || $type === 'all') {
-            return true;
-        }
-
-        $ext = strtolower((string) pathinfo($file, PATHINFO_EXTENSION));
-
-        return match ($type) {
-            'images' => in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'avif'], true),
-            'video' => in_array($ext, ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv', 'mpeg', 'mpg', 'ogv', '3gp', '3g2'], true),
-            'audio' => in_array($ext, ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'], true),
-            'documents' => in_array($ext, ['pdf', 'doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'csv', 'ppt', 'pptx', 'odp', 'txt', 'md', 'rtf'], true),
-            'archives' => in_array($ext, ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'], true),
-            'other' => !$this->matchesType($file, 'images')
-                && !$this->matchesType($file, 'video')
-                && !$this->matchesType($file, 'audio')
-                && !$this->matchesType($file, 'documents')
-                && !$this->matchesType($file, 'archives'),
-            default => true,
-        };
+        return MediaFileType::matches($file, $type);
     }
 
     public function categories(): array
@@ -914,27 +896,12 @@ final class MediaRepository
 
     private function categoryMatches(string $category, string $categoryPath): bool
     {
-        $category = $this->normalizeCategory($category);
-        $categoryPath = $this->normalizeCategory($categoryPath);
-
-        if ($categoryPath === '') {
-            return $category === '';
-        }
-
-        return $category === $categoryPath || str_starts_with($category, $categoryPath . ' / ');
+        return MediaCategory::matches($category, $categoryPath);
     }
 
     private function renameCategoryPath(string $category, string $oldName, string $newName): string
     {
-        if ($category === $oldName) {
-            return $newName;
-        }
-
-        if (str_starts_with($category, $oldName . ' / ')) {
-            return $newName . substr($category, strlen($oldName));
-        }
-
-        return $category;
+        return MediaCategory::renamePath($category, $oldName, $newName);
     }
 
     private function metadata(): array
@@ -1013,49 +980,16 @@ final class MediaRepository
 
     private function normalizeCategory(string $category): string
     {
-        $category = str_replace('\\', '/', $category);
-        $category = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $category) ?? '';
-        $parts = array_filter(array_map(
-            function (string $part): string {
-                $part = preg_replace('/\s+/u', ' ', trim($part)) ?? '';
-
-                return substr($part, 0, 80);
-            },
-            explode('/', $category)
-        ), static fn(string $part): bool => $part !== '');
-
-        return substr(implode(' / ', $parts), 0, 240);
+        return MediaCategory::normalize($category);
     }
 
     private function categoryPathsFor(string $category): array
     {
-        $category = $this->normalizeCategory($category);
-        if ($category === '') {
-            return [];
-        }
-
-        $paths = [];
-        $current = [];
-
-        foreach (explode(' / ', $category) as $part) {
-            $current[] = $part;
-            $paths[] = implode(' / ', $current);
-        }
-
-        return $paths;
+        return MediaCategory::pathsFor($category);
     }
 
     private function sortCategories(array $categories): array
     {
-        $normalized = array_values(array_unique(array_filter(
-            array_map(fn(mixed $category): string => $this->normalizeCategory((string) $category), $categories),
-            static fn(string $category): bool => $category !== ''
-        )));
-
-        usort($normalized, static function (string $a, string $b): int {
-            return strcasecmp(str_replace(' / ', "\0", $a), str_replace(' / ', "\0", $b));
-        });
-
-        return $normalized;
+        return MediaCategory::sort($categories);
     }
 }

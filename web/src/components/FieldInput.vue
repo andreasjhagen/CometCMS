@@ -727,49 +727,18 @@ import FieldInput from "./FieldInput.vue";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
-import { marked } from "marked";
-import TurndownService from "turndown";
 import { Icon } from "@iconify/vue";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
-
-const turndown = new TurndownService({
-  headingStyle: "atx",
-  codeBlockStyle: "fenced",
-});
-
-const ALLOWED_HTML_TAGS = {
-  a: ["href", "title", "target", "rel"],
-  blockquote: [],
-  br: [],
-  code: [],
-  div: ["class"],
-  em: [],
-  h1: [],
-  h2: [],
-  h3: [],
-  h4: [],
-  h5: [],
-  h6: [],
-  hr: [],
-  img: ["src", "alt", "title", "width", "height"],
-  li: [],
-  ol: [],
-  p: [],
-  pre: [],
-  s: [],
-  span: ["class"],
-  strong: [],
-  table: [],
-  tbody: [],
-  td: [],
-  th: [],
-  thead: [],
-  tr: [],
-  u: [],
-  ul: [],
-};
-
-const DROP_HTML_TAGS = new Set(["iframe", "object", "script", "style"]);
+import { markdownToHtml, sanitizeHtml, turndown } from "../composables/richText.js";
+import {
+  getFileIcon,
+  isImageFile,
+  mediaUrl as buildMediaUrl,
+  normalizeChoiceValue,
+  normalizeChoiceValues,
+  normalizeMediaModel as normalizeMediaModelValue,
+  uploadedMediaFilename,
+} from "../composables/mediaUtils.js";
 
 const props = defineProps({
   name: { type: String, required: true },
@@ -791,100 +760,6 @@ const richTextMode = ref("visual");
 const isRichTextField = computed(() =>
   ["markdown", "html"].includes(props.config.type),
 );
-
-function markdownToHtml(value) {
-  return marked.parse(String(value ?? ""), { async: false });
-}
-
-function sanitizeHtml(value) {
-  const html = String(value ?? "");
-
-  if (html.trim() === "" || typeof document === "undefined") {
-    return html.trim();
-  }
-
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  sanitizeHtmlChildren(template.content);
-
-  return template.innerHTML.trim();
-}
-
-function sanitizeHtmlChildren(node) {
-  Array.from(node.childNodes).forEach((child) => sanitizeHtmlNode(child));
-}
-
-function sanitizeHtmlNode(node) {
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-  const tag = node.tagName.toLowerCase();
-
-  if (DROP_HTML_TAGS.has(tag)) {
-    node.remove();
-    return;
-  }
-
-  sanitizeHtmlChildren(node);
-
-  if (!Object.prototype.hasOwnProperty.call(ALLOWED_HTML_TAGS, tag)) {
-    node.replaceWith(...Array.from(node.childNodes));
-    return;
-  }
-
-  const allowedAttributes = ALLOWED_HTML_TAGS[tag];
-
-  Array.from(node.attributes).forEach((attribute) => {
-    const name = attribute.name.toLowerCase();
-
-    if (
-      !allowedAttributes.includes(name) ||
-      !isSafeHtmlAttributeValue(tag, name, attribute.value)
-    ) {
-      node.removeAttribute(attribute.name);
-    }
-  });
-
-  if (tag === "a" && node.getAttribute("target")?.toLowerCase() === "_blank") {
-    node.setAttribute("rel", "noopener noreferrer");
-  }
-}
-
-function isSafeHtmlAttributeValue(tag, name, value) {
-  const trimmed = String(value ?? "").trim();
-
-  if (name === "href" || name === "src") {
-    return isSafeHtmlUrl(trimmed);
-  }
-
-  if (name === "target") {
-    return ["_blank", "_self", "_parent", "_top"].includes(trimmed);
-  }
-
-  if (tag === "img" && ["width", "height"].includes(name)) {
-    return /^\d{1,4}$/.test(trimmed);
-  }
-
-  return true;
-}
-
-function isSafeHtmlUrl(url) {
-  if (
-    url === "" ||
-    url.startsWith("#") ||
-    url.startsWith("/") ||
-    url.startsWith("./") ||
-    url.startsWith("../")
-  ) {
-    return true;
-  }
-
-  try {
-    const parsed = new URL(url, window.location.origin);
-    return ["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
 
 function richTextToEditorHtml(value) {
   if (props.config.type === "html") {
@@ -1199,66 +1074,6 @@ async function uploadDroppedMedia(files) {
   }
 }
 
-function uploadedMediaFilename(item) {
-  if (item && typeof item === "object") {
-    if (item.url) {
-      const fromUrl = extractMediaFilename(item.url);
-      if (fromUrl !== "") {
-        return fromUrl;
-      }
-    }
-
-    if (item.filename) {
-      const fromFilename = extractMediaFilename(item.filename);
-      if (fromFilename !== "") {
-        return fromFilename;
-      }
-    }
-
-    const rawName = String(item.name ?? item.filename ?? "").trim();
-    if (rawName !== "") {
-      return rawName;
-    }
-  }
-
-  return extractMediaFilename(item);
-}
-
-const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
-
-function getFileIcon(name) {
-  const ext = String(name).split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return { icon: "mdi:file-pdf-box", class: "text-red-500" };
-  if (["doc", "docx", "odt"].includes(ext))
-    return { icon: "mdi:file-word-box", class: "text-blue-600" };
-  if (["xls", "xlsx", "ods", "csv"].includes(ext))
-    return { icon: "mdi:file-excel-box", class: "text-green-600" };
-  if (["ppt", "pptx", "odp"].includes(ext))
-    return { icon: "mdi:file-powerpoint-box", class: "text-orange-500" };
-  if (["zip", "rar", "7z", "tar", "gz", "bz2"].includes(ext))
-    return { icon: "mdi:zip-box", class: "text-yellow-600" };
-  if (
-    [
-      "mp4",
-      "webm",
-      "mov",
-      "m4v",
-      "avi",
-      "mkv",
-      "mpeg",
-      "mpg",
-      "ogv",
-      "3gp",
-      "3g2",
-    ].includes(ext)
-  )
-    return { icon: "mdi:file-video-outline", class: "text-pink-500" };
-  if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext))
-    return { icon: "mdi:file-music-outline", class: "text-purple-500" };
-  if (["txt", "md", "rtf"].includes(ext))
-    return { icon: "mdi:file-document-outline", class: "text-slate-500" };
-  return { icon: "mdi:file-outline", class: "text-slate-400" };
-}
 const mediaValues = computed(() => normalizeMediaValues(props.modelValue));
 const mediaLabel = computed(() => {
   if (mediaValues.value.length === 0) return "No media selected";
@@ -1289,8 +1104,7 @@ const relationValue = computed(() => {
 });
 
 function isImage(value) {
-  const ext = String(value).split(".").pop()?.toLowerCase() ?? "";
-  return imageExts.has(ext);
+  return isImageFile(value);
 }
 
 function normalizeMediaValues(value) {
@@ -1298,111 +1112,11 @@ function normalizeMediaValues(value) {
 }
 
 function normalizeMediaModel(value) {
-  const source = Array.isArray(value) ? value : toStringList(value);
-  const normalized = Array.from(
-    new Set(source.map(extractMediaFilename).filter(Boolean)),
-  );
-
-  return props.config.multiple ? normalized : normalized.slice(0, 1);
-}
-
-function toStringList(value) {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => splitListLikeValue(item));
-  }
-
-  return splitListLikeValue(value);
-}
-
-function splitListLikeValue(value) {
-  if (value === null || value === undefined) {
-    return [];
-  }
-
-  if (typeof value === "object" && !Array.isArray(value)) {
-    const choice = String(value.value ?? value.id ?? "").trim();
-    if (choice !== "") {
-      return [choice];
-    }
-
-    const media = extractMediaFilename(value);
-    if (media !== "") {
-      return [media];
-    }
-
-    return [];
-  }
-
-  const raw = String(value).trim();
-
-  if (!raw) {
-    return [];
-  }
-
-  if (raw.startsWith("[") && raw.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(raw);
-
-      if (Array.isArray(parsed)) {
-        return parsed.map((item) => String(item ?? "").trim()).filter(Boolean);
-      }
-    } catch {
-      // Fall through to comma-separated parsing.
-    }
-  }
-
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function extractMediaFilename(value) {
-  let raw =
-    value && typeof value === "object"
-      ? String(value.name ?? value.filename ?? value.url ?? "")
-      : String(value ?? "");
-
-  raw = raw.trim();
-
-  if (!raw) {
-    return "";
-  }
-
-  try {
-    raw = decodeURIComponent(raw);
-  } catch {
-    // Keep raw value if it is not URI encoded.
-  }
-
-  const withoutQuery = raw.split(/[?#]/, 1)[0];
-  const normalizedPath = withoutQuery.replace(/\\+/g, "/");
-  const parts = normalizedPath.split("/").filter(Boolean);
-
-  return parts.length > 0 ? parts[parts.length - 1] : "";
-}
-
-function normalizeChoiceValue(value) {
-  if (value === null || value === undefined || value === "") return null;
-  if (Array.isArray(value)) {
-    const first = normalizeChoiceValues(value)[0];
-    return first ?? null;
-  }
-
-  if (typeof value === "object") {
-    const objectValue = String(value.value ?? value.id ?? "").trim();
-    return objectValue === "" ? null : objectValue;
-  }
-
-  return String(value);
-}
-
-function normalizeChoiceValues(value) {
-  return Array.from(new Set(toStringList(value)));
+  return normalizeMediaModelValue(value, props.config.multiple);
 }
 
 function mediaUrl(value) {
-  return `/media/${encodeURIComponent(getActiveWorkspace())}/${encodeURIComponent(String(value))}`;
+  return buildMediaUrl(getActiveWorkspace(), value);
 }
 
 function numberOr(value, fallback) {

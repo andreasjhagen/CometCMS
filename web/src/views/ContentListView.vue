@@ -592,6 +592,29 @@ import { useApiEndpointStore } from "../stores/apiEndpoint.js";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { contentCollectionEndpoint } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
+import {
+  apiSortKey,
+  booleanPillClass,
+  boolValue,
+  effectiveStatus,
+  fieldColumnKey,
+  fieldKeyFromColumnKey,
+  fieldLabel,
+  fieldTextValue as formatFieldTextValue,
+  fieldValue,
+  formatNumberField,
+  formatSelectField,
+  isFieldSortKey,
+  mediaValuesFor,
+  normalizeFieldSortValue,
+  orderLocales,
+  statusPillClass,
+} from "../composables/contentDisplay.js";
+import {
+  getFileIcon,
+  isImageFile,
+  mediaThumbUrl as buildMediaThumbUrl,
+} from "../composables/mediaUtils.js";
 
 const toast = useToastStore();
 const apiEndpointStore = useApiEndpointStore();
@@ -1056,32 +1079,6 @@ const canPageForward = computed(
   () => currentOffset.value + currentLimit.value < totalEntries.value,
 );
 
-const statusPillClasses = {
-  draft: "bg-slate-100 text-slate-700 ring-slate-200",
-  published: "bg-emerald-100 text-emerald-700 ring-emerald-200",
-  scheduled: "bg-sky-100 text-sky-700 ring-sky-200",
-  protected: "bg-violet-100 text-violet-700 ring-violet-200",
-  archived: "bg-amber-100 text-amber-700 ring-amber-200",
-};
-
-function effectiveStatus(entry) {
-  if (
-    entry.status === "published" &&
-    entry.published_at &&
-    new Date(entry.published_at) > new Date()
-  ) {
-    return "scheduled";
-  }
-  return entry.status;
-}
-
-function statusPillClass(status) {
-  return [
-    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset",
-    statusPillClasses[status] ?? "bg-slate-100 text-slate-600 ring-slate-200",
-  ];
-}
-
 function formatStatus(status) {
   return status ?? t("contentList.unknownStatus");
 }
@@ -1095,12 +1092,6 @@ function entryLocaleBadges(entry) {
   return orderedContentTypeLocales.value.filter((loc) =>
     Object.prototype.hasOwnProperty.call(entry.translations, loc),
   );
-}
-
-function orderLocales(locales, defaultLocale) {
-  const unique = [...new Set(locales)];
-  if (!defaultLocale || !unique.includes(defaultLocale)) return unique;
-  return [defaultLocale, ...unique.filter((loc) => loc !== defaultLocale)];
 }
 
 async function loadTrashCount() {
@@ -1173,56 +1164,6 @@ function formatDate(iso) {
   });
 }
 
-function fieldColumnKey(key) {
-  return `field:${key}`;
-}
-
-function isFieldSortKey(key) {
-  return typeof key === "string" && key.startsWith("field:");
-}
-
-function fieldKeyFromColumnKey(key) {
-  return String(key).slice("field:".length);
-}
-
-function apiSortKey(key) {
-  return isFieldSortKey(key) ? fieldKeyFromColumnKey(key) : key;
-}
-
-function fieldLabel(key, config) {
-  if (config?.label) return String(config.label);
-  return humanizeKey(key);
-}
-
-function humanizeKey(key) {
-  return String(key)
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function fieldValue(entry, key) {
-  if (entry && Object.prototype.hasOwnProperty.call(entry, key))
-    return entry[key];
-  if (entry?.data && Object.prototype.hasOwnProperty.call(entry.data, key))
-    return entry.data[key];
-  return null;
-}
-
-function normalizeFieldSortValue(value) {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "number") return value;
-  if (typeof value === "boolean") return value ? 1 : 0;
-  if (Array.isArray(value))
-    return value.map((item) => normalizeFieldSortValue(item)).join(" ");
-  if (typeof value === "object") return JSON.stringify(value);
-  const number = Number(value);
-  return Number.isFinite(number) && String(value).trim() !== ""
-    ? number
-    : String(value).toLowerCase();
-}
-
 function cellClass(column) {
   const base = "px-4 py-3 text-sm align-middle";
   if (column.key === "title") return `${base} font-medium text-slate-900`;
@@ -1236,82 +1177,16 @@ function cellClass(column) {
   return `${base} text-slate-700`;
 }
 
-const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
-
 function isImage(value) {
-  const ext = String(value).split(".").pop()?.toLowerCase() ?? "";
-  return imageExts.has(ext);
+  return isImageFile(value);
 }
 
 function mediaThumbUrl(value) {
-  return `/media-thumbs/${encodeURIComponent(getActiveWorkspace())}/${encodeURIComponent(String(value))}`;
-}
-
-function mediaValuesFor(entry, key) {
-  const value = fieldValue(entry, key);
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
-  }
-
-  const single = String(value ?? "").trim();
-  return single ? [single] : [];
-}
-
-function getFileIcon(name) {
-  const ext = String(name).split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return { icon: "mdi:file-pdf-box", class: "text-red-500" };
-  if (["doc", "docx", "odt"].includes(ext))
-    return { icon: "mdi:file-word-box", class: "text-blue-600" };
-  if (["xls", "xlsx", "ods", "csv"].includes(ext))
-    return { icon: "mdi:file-excel-box", class: "text-green-600" };
-  if (["ppt", "pptx", "odp"].includes(ext))
-    return { icon: "mdi:file-powerpoint-box", class: "text-orange-500" };
-  if (["zip", "rar", "7z", "tar", "gz", "bz2"].includes(ext))
-    return { icon: "mdi:zip-box", class: "text-yellow-600" };
-  if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext))
-    return { icon: "mdi:file-music-outline", class: "text-purple-500" };
-  if (["txt", "md", "rtf"].includes(ext))
-    return { icon: "mdi:file-document-outline", class: "text-slate-500" };
-  return { icon: "mdi:file-outline", class: "text-slate-400" };
-}
-
-function booleanPillClass(value) {
-  return [
-    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset",
-    boolValue(value)
-      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-      : "bg-slate-100 text-slate-600 ring-slate-200",
-  ];
+  return buildMediaThumbUrl(getActiveWorkspace(), value);
 }
 
 function formatBoolean(value) {
   return boolValue(value) ? t("contentList.true") : t("contentList.false");
-}
-
-function boolValue(value) {
-  if (typeof value === "string")
-    return ["true", "1", "yes", "on"].includes(value.toLowerCase());
-  return !!value;
-}
-
-function formatNumberField(value, config = null) {
-  if (value === null || value === undefined || value === "") return "—";
-  const number = Number(value);
-  if (!Number.isFinite(number)) return String(value);
-
-  const decimals = config?.display_decimals;
-  if (decimals === "full") return String(value);
-
-  const fixedDigits =
-    decimals === null || decimals === undefined || decimals === ""
-      ? 0
-      : Number(decimals);
-  return Number.isInteger(fixedDigits) && fixedDigits >= 0 && fixedDigits <= 3
-    ? new Intl.NumberFormat(undefined, {
-        minimumFractionDigits: fixedDigits,
-        maximumFractionDigits: fixedDigits,
-      }).format(number)
-    : new Intl.NumberFormat().format(number);
 }
 
 function formatFieldDate(value, type) {
@@ -1327,60 +1202,8 @@ function formatFieldDate(value, type) {
   return formatDate(value);
 }
 
-function selectOptionMap(config = {}) {
-  const options = config?.options;
-  if (options && typeof options === "object" && !Array.isArray(options)) {
-    return Object.fromEntries(
-      Object.entries(options).map(([key, label]) => [
-        String(key),
-        String(label),
-      ]),
-    );
-  }
-
-  return Object.fromEntries(
-    (options ?? []).map((option) => [String(option), String(option)]),
-  );
-}
-
-function formatSelectField(value, config = {}, trimmed = true) {
-  if (value === null || value === undefined || value === "") return "—";
-
-  const labels = selectOptionMap(config);
-  const labelFor = (item) => {
-    const key = String(item ?? "").trim();
-    return key ? (labels[key] ?? key) : "";
-  };
-
-  const text = Array.isArray(value)
-    ? value.map(labelFor).filter(Boolean).join(", ")
-    : labelFor(value);
-
-  if (!text) return "—";
-  return trimmed ? trimText(text) : text;
-}
-
 function fieldTextValue(value, trimmed = true) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return formatBoolean(value);
-  if (Array.isArray(value)) {
-    const text = value
-      .map((item) => fieldTextValue(item, false))
-      .filter((item) => item !== "—")
-      .join(", ");
-    return trimmed ? trimText(text) : text;
-  }
-  if (typeof value === "object") {
-    return Array.isArray(value) ? "[…]" : "{…}";
-  }
-
-  const text = String(value).replace(/\s+/g, " ").trim();
-  return trimmed ? trimText(text) : text;
-}
-
-function trimText(value, max = 80) {
-  const text = String(value ?? "");
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+  return formatFieldTextValue(value, formatBoolean, trimmed);
 }
 
 async function loadUsers() {
