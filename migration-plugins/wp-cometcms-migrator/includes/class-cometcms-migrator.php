@@ -805,6 +805,8 @@ final class CometCMS_Migrator
             $schema['label'] = $label;
         }
 
+        $this->apply_acf_field_description($schema, $field);
+
         return $schema;
     }
 
@@ -862,7 +864,17 @@ final class CometCMS_Migrator
             $schema['label'] = $label;
         }
 
+        $this->apply_acf_field_description($schema, $field);
+
         return $schema;
+    }
+
+    private function apply_acf_field_description(array &$schema, array $field): void
+    {
+        $description = trim(wp_strip_all_tags((string) ($field['instructions'] ?? '')));
+        if ($description !== '') {
+            $schema['description'] = $description;
+        }
     }
 
     private function acf_select_options(array $field): array
