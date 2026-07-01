@@ -47,8 +47,9 @@
         append("Preview failed: " + response.data.message);
         return;
       }
+      const labels = response.data.labels || {};
       Object.entries(response.data.counts).forEach(function ([type, count]) {
-        append(type + ": " + count + " entries");
+        append((labels[type] || type) + ": " + count + " entries");
       });
     });
   });
@@ -67,6 +68,16 @@
       }
 
       const counts = preview.data.counts;
+      const labels = preview.data.labels || {};
+      const targets = Object.entries(counts)
+        .filter(function ([, count]) {
+          return Number(count) > 0;
+        })
+        .map(function ([type]) {
+          return labels[type] || type;
+        });
+      append("Migrating " + (targets.length ? targets.join(", ") : "no entries"));
+
       const total = Object.values(counts).reduce(function (sum, count) {
         return sum + Number(count);
       }, 0);
@@ -75,7 +86,8 @@
 
       for (const [postType, count] of Object.entries(counts)) {
         let offset = 0;
-        append("Starting " + postType + " (" + count + ")");
+        const label = labels[postType] || postType;
+        append("Starting " + label + " (" + count + ")");
 
         while (offset < count) {
           const response = await request("cometcms_migrate_batch", {
@@ -85,7 +97,7 @@
           });
 
           if (!response.success) {
-            append(postType + " failed: " + response.data.message);
+            append(label + " failed: " + response.data.message);
             break;
           }
 
@@ -94,7 +106,7 @@
           offset = batch.next_offset;
           setProgress(migrated, total);
           append(
-            postType +
+            label +
               ": processed " +
               batch.processed +
               ", created " +

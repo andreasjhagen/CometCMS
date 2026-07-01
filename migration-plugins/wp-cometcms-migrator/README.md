@@ -10,6 +10,7 @@ This WordPress plugin migrates public WordPress post types into CometCMS through
 - Optional creation of missing CometCMS content types
 - Featured image and attached media upload
 - Advanced Custom Fields and ACF Pro field migration
+- ACF option page migration into a dedicated CometCMS content type
 - Repeatable updates using stored CometCMS entry IDs in WordPress post meta
 
 ## Required CometCMS Token Grants
@@ -40,7 +41,7 @@ WordPress content is stored as HTML in the `content` textarea field.
 
 ## ACF Support
 
-When ACF migration is enabled, the plugin reads field objects from each migrated post and adds missing fields to the CometCMS content type.
+When ACF migration is enabled, the plugin reads field objects from each migrated post and adds missing fields to the CometCMS content type. ACF option pages can also be migrated into the configured ACF options content type, with one CometCMS entry per option page.
 
 Native mappings:
 

@@ -153,6 +153,8 @@ final class CometCMS_Migrator_Admin
                         <td>
                             <label><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[migrate_acf]" value="1" <?php checked(!empty($settings['migrate_acf'])); ?>> <?php esc_html_e('Import Advanced Custom Fields values and add missing CometCMS schema fields', 'cometcms-migrator'); ?></label>
                             <p class="description"><?php esc_html_e('Simple ACF fields are mapped to native CometCMS fields. Complex ACF Pro fields such as repeaters and flexible content are stored as JSON.', 'cometcms-migrator'); ?></p>
+                            <p><label><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[migrate_acf_options]" value="1" <?php checked(!empty($settings['migrate_acf_options'])); ?>> <?php esc_html_e('Also migrate ACF option pages', 'cometcms-migrator'); ?></label></p>
+                            <p><label><?php esc_html_e('ACF options content type', 'cometcms-migrator'); ?> <input type="text" name="<?php echo esc_attr(self::OPTION); ?>[acf_options_collection]" value="<?php echo esc_attr((string) $settings['acf_options_collection']); ?>"></label></p>
                         </td>
                     </tr>
                     <tr>
@@ -191,7 +193,14 @@ final class CometCMS_Migrator_Admin
     public static function ajax_preview_counts(): void
     {
         self::guard_ajax();
-        self::send_result(self::run_safely(static fn() => ['counts' => (new CometCMS_Migrator(self::settings()))->counts()]));
+        self::send_result(self::run_safely(static function (): array {
+            $migrator = new CometCMS_Migrator(self::settings());
+
+            return [
+                'counts' => $migrator->counts(),
+                'labels' => $migrator->migration_labels(),
+            ];
+        }));
     }
 
     public static function ajax_migrate_batch(): void

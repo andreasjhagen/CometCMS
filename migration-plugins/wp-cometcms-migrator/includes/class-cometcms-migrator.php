@@ -6,6 +6,8 @@ if (!defined('ABSPATH')) {
 
 final class CometCMS_Migrator
 {
+    private const ACF_OPTIONS_TYPE = '__acf_options';
+
     private CometCMS_Migrator_Api_Client $client;
     private array $settings;
     private array $media_cache = [];
@@ -33,6 +35,8 @@ final class CometCMS_Migrator
             'update_existing' => true,
             'migrate_media' => true,
             'migrate_acf' => true,
+            'migrate_acf_options' => true,
+            'acf_options_collection' => 'wordpress-acf-options',
             'media_category' => 'WordPress Migration',
         ];
     }
@@ -59,6 +63,8 @@ final class CometCMS_Migrator
             'update_existing' => !empty($input['update_existing']),
             'migrate_media' => !empty($input['migrate_media']),
             'migrate_acf' => !empty($input['migrate_acf']),
+            'migrate_acf_options' => !empty($input['migrate_acf_options']),
+            'acf_options_collection' => sanitize_title((string) ($input['acf_options_collection'] ?? $defaults['acf_options_collection'])),
             'media_category' => sanitize_text_field((string) ($input['media_category'] ?? $defaults['media_category'])),
         ];
     }
@@ -80,12 +86,37 @@ final class CometCMS_Migrator
                 + (int) wp_count_posts($post_type)->future;
         }
 
+        if ($this->should_migrate_acf_options()) {
+            $counts[self::ACF_OPTIONS_TYPE] = count($this->acf_option_pages());
+        }
+
         return $counts;
+    }
+
+    public function migration_labels(): array
+    {
+        $labels = [];
+
+        foreach ((array) ($this->settings['post_types'] ?? []) as $post_type) {
+            $post_type = sanitize_key($post_type);
+            $labels[$post_type] = get_post_type_object($post_type)->labels->name ?? ucfirst($post_type);
+        }
+
+        if ($this->should_migrate_acf_options()) {
+            $labels[self::ACF_OPTIONS_TYPE] = __('ACF option pages', 'cometcms-migrator');
+        }
+
+        return $labels;
     }
 
     public function migrate_batch(string $post_type, int $offset, int $limit): array|WP_Error
     {
         $post_type = sanitize_key($post_type);
+
+        if ($post_type === self::ACF_OPTIONS_TYPE) {
+            return $this->migrate_acf_options_batch($offset, $limit);
+        }
+
         $collection = $this->collection_for($post_type);
 
         if ($collection === '') {
@@ -137,6 +168,57 @@ final class CometCMS_Migrator
         }
 
         wp_reset_postdata();
+
+        return $result;
+    }
+
+    private function migrate_acf_options_batch(int $offset, int $limit): array|WP_Error
+    {
+        if (!$this->should_migrate_acf_options()) {
+            return new WP_Error('cometcms_acf_options_disabled', __('ACF option page migration is disabled or ACF is unavailable.', 'cometcms-migrator'));
+        }
+
+        $collection = $this->acf_options_collection();
+        if ($collection === '') {
+            return new WP_Error('cometcms_collection_missing', __('No CometCMS collection is configured for ACF option pages.', 'cometcms-migrator'));
+        }
+
+        $pages = $this->acf_option_pages();
+        $batch = array_slice($pages, $offset, $limit);
+
+        if (!empty($this->settings['create_schema'])) {
+            $schema_result = $this->ensure_acf_options_schema($collection, $pages);
+            if (is_wp_error($schema_result)) {
+                return $schema_result;
+            }
+        }
+
+        $result = [
+            'post_type' => self::ACF_OPTIONS_TYPE,
+            'collection' => $collection,
+            'processed' => 0,
+            'created' => 0,
+            'updated' => 0,
+            'failed' => 0,
+            'total' => count($pages),
+            'next_offset' => $offset + count($batch),
+            'done' => ($offset + count($batch)) >= count($pages),
+            'messages' => [],
+        ];
+
+        foreach ($batch as $page) {
+            $migration = $this->migrate_acf_option_page($page, $collection);
+            $result['processed']++;
+
+            if (is_wp_error($migration)) {
+                $result['failed']++;
+                $result['messages'][] = sprintf('%s: %s', (string) $page['title'], $migration->get_error_message());
+                continue;
+            }
+
+            $result[$migration['action']]++;
+            $result['messages'][] = sprintf('%s: %s', (string) $page['title'], $migration['action']);
+        }
 
         return $result;
     }
@@ -202,6 +284,65 @@ final class CometCMS_Migrator
         return is_wp_error($created) ? $created : true;
     }
 
+    private function ensure_acf_options_schema(string $collection, array $pages): bool|WP_Error
+    {
+        $acf_fields = $this->acf_schema_fields_for_sources(array_map(
+            static fn(array $page): string => (string) $page['post_id'],
+            $pages
+        ));
+
+        $existing = $this->client->get_content_type($collection);
+        if (!is_wp_error($existing)) {
+            if ($acf_fields === []) {
+                return true;
+            }
+
+            $schema = is_array($existing['data'] ?? null) ? $existing['data'] : [];
+            $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
+            $missing = array_diff_key($acf_fields, $fields);
+
+            if ($missing === []) {
+                return true;
+            }
+
+            $schema['fields'] = array_replace($fields, $missing);
+            $updated = $this->client->update_content_type($collection, $schema);
+
+            return is_wp_error($updated) ? $updated : true;
+        }
+
+        if ($acf_fields === []) {
+            $acf_fields['acf'] = [
+                'type' => 'json',
+                'required' => false,
+            ];
+        }
+
+        $error_data = $existing->get_error_data();
+        if ((int) ($error_data['status'] ?? 0) !== 404) {
+            return $existing;
+        }
+
+        $schema = [
+            'name' => $collection,
+            'label' => __('WordPress ACF Option Pages', 'cometcms-migrator'),
+            'icon' => 'mdi:cog-outline',
+            'singleton' => false,
+            'slug_field' => 'slug',
+            'slug_source' => 'title',
+            'fields' => [
+                'title' => ['type' => 'text', 'required' => true],
+                'slug' => ['type' => 'slug', 'required' => true, 'unique' => true],
+                'wordpress_type' => ['type' => 'text', 'required' => false],
+                'acf_option_post_id' => ['type' => 'text', 'required' => false],
+            ] + $acf_fields,
+        ];
+
+        $created = $this->client->create_content_type($schema);
+
+        return is_wp_error($created) ? $created : true;
+    }
+
     private function migrate_post(WP_Post $post, string $collection): array|WP_Error
     {
         $payload = $this->post_payload($post);
@@ -230,6 +371,45 @@ final class CometCMS_Migrator
         update_post_meta($post->ID, $this->meta_key($collection), (string) ($created['data']['id'] ?? ''));
 
         return ['action' => $action, 'entry' => $created['data'] ?? []];
+    }
+
+    private function migrate_acf_option_page(array $page, string $collection): array|WP_Error
+    {
+        $payload = $this->acf_option_page_payload($page);
+        $identifier = (string) $payload['slug'];
+        $action = 'created';
+
+        if (!empty($this->settings['update_existing'])) {
+            $lookup = $this->client->get_entry($collection, $identifier);
+            if (!is_wp_error($lookup) && !empty($lookup['data']['id'])) {
+                $updated = $this->client->update_entry($collection, (string) $lookup['data']['id'], $payload);
+                if (is_wp_error($updated)) {
+                    return $updated;
+                }
+
+                return ['action' => 'updated', 'entry' => $updated['data'] ?? []];
+            }
+        }
+
+        $created = $this->client->create_entry($collection, $payload);
+        if (is_wp_error($created)) {
+            return $created;
+        }
+
+        return ['action' => $action, 'entry' => $created['data'] ?? []];
+    }
+
+    private function acf_option_page_payload(array $page): array
+    {
+        $payload = [
+            'title' => (string) $page['title'],
+            'slug' => (string) $page['slug'],
+            'status' => 'published',
+            'wordpress_type' => 'acf_options_page',
+            'acf_option_post_id' => (string) $page['post_id'],
+        ];
+
+        return array_replace($payload, $this->acf_payload_for_source((string) $page['post_id']));
     }
 
     private function post_payload(WP_Post $post): array
@@ -314,14 +494,27 @@ final class CometCMS_Migrator
             return [];
         }
 
-        $fields = [];
+        $sources = [];
 
         foreach ($posts as $post) {
-            if (!$post instanceof WP_Post) {
-                continue;
+            if ($post instanceof WP_Post) {
+                $sources[] = (int) $post->ID;
             }
+        }
 
-            foreach ($this->acf_field_objects($post, false) as $field) {
+        return $this->acf_schema_fields_for_sources($sources);
+    }
+
+    private function acf_schema_fields_for_sources(array $sources): array
+    {
+        if (empty($this->settings['migrate_acf']) || !$this->acf_available()) {
+            return [];
+        }
+
+        $fields = [];
+
+        foreach ($sources as $source) {
+            foreach ($this->acf_field_objects_for_source($source, false) as $field) {
                 $key = $this->acf_payload_key($field);
                 if ($key === '' || isset($fields[$key])) {
                     continue;
@@ -340,10 +533,19 @@ final class CometCMS_Migrator
             return [];
         }
 
+        return $this->acf_payload_for_source($post->ID);
+    }
+
+    private function acf_payload_for_source(int|string $source): array
+    {
+        if (empty($this->settings['migrate_acf']) || !$this->acf_available()) {
+            return [];
+        }
+
         $payload = [];
         $raw = [];
 
-        foreach ($this->acf_field_objects($post, true) as $field) {
+        foreach ($this->acf_field_objects_for_source($source, true) as $field) {
             $key = $this->acf_payload_key($field);
             if ($key === '') {
                 continue;
@@ -361,13 +563,13 @@ final class CometCMS_Migrator
         return $payload;
     }
 
-    private function acf_field_objects(WP_Post $post, bool $load_value): array
+    private function acf_field_objects_for_source(int|string $source, bool $load_value): array
     {
         if (!$this->acf_available()) {
             return [];
         }
 
-        $fields = get_field_objects($post->ID, true, $load_value);
+        $fields = get_field_objects($source, true, $load_value);
 
         return is_array($fields) ? array_values(array_filter($fields, 'is_array')) : [];
     }
@@ -769,6 +971,69 @@ final class CometCMS_Migrator
     private function collection_for(string $post_type): string
     {
         return sanitize_title((string) ($this->settings['collections'][$post_type] ?? ''));
+    }
+
+    private function should_migrate_acf_options(): bool
+    {
+        return !empty($this->settings['migrate_acf'])
+            && !empty($this->settings['migrate_acf_options'])
+            && $this->acf_available()
+            && $this->acf_option_pages() !== [];
+    }
+
+    private function acf_options_collection(): string
+    {
+        return sanitize_title((string) ($this->settings['acf_options_collection'] ?? ''));
+    }
+
+    private function acf_option_pages(): array
+    {
+        if (!$this->acf_available()) {
+            return [];
+        }
+
+        $pages = [];
+
+        if (function_exists('acf_get_options_pages')) {
+            $registered = acf_get_options_pages();
+            foreach (is_array($registered) ? $registered : [] as $page) {
+                if (!is_array($page)) {
+                    continue;
+                }
+
+                $post_id = (string) ($page['post_id'] ?? 'option');
+                if ($post_id === '') {
+                    $post_id = 'option';
+                }
+
+                $slug = sanitize_title((string) ($page['menu_slug'] ?? $post_id));
+                if ($slug === '') {
+                    $slug = sanitize_title($post_id);
+                }
+
+                $pages[$slug] = [
+                    'post_id' => $post_id,
+                    'slug' => $slug,
+                    'title' => (string) ($page['page_title'] ?? $page['menu_title'] ?? ucfirst(str_replace('-', ' ', $slug))),
+                ];
+            }
+        }
+
+        foreach (['option', 'options'] as $post_id) {
+            if ($pages !== [] || $this->acf_field_objects_for_source($post_id, false) === []) {
+                continue;
+            }
+
+            $pages['acf-options'] = [
+                'post_id' => $post_id,
+                'slug' => 'acf-options',
+                'title' => __('ACF Options', 'cometcms-migrator'),
+            ];
+        }
+
+        return array_values(array_filter($pages, function (array $page): bool {
+            return $this->acf_field_objects_for_source((string) $page['post_id'], false) !== [];
+        }));
     }
 
     private function map_status(string $status): string
