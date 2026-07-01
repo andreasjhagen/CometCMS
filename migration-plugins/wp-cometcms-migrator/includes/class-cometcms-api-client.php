@@ -161,6 +161,15 @@ final class CometCMS_Migrator_Api_Client
 
         if ($status < 200 || $status >= 300) {
             $message = (string) ($decoded['error']['message'] ?? sprintf(__('CometCMS request failed with HTTP %d.', 'cometcms-migrator'), $status));
+            $fields = is_array($decoded['error']['fields'] ?? null) ? $decoded['error']['fields'] : [];
+            if ($fields !== []) {
+                $field_messages = [];
+                foreach ($fields as $field => $field_message) {
+                    $field_messages[] = sprintf('%s: %s', (string) $field, is_scalar($field_message) ? (string) $field_message : wp_json_encode($field_message));
+                }
+
+                $message .= ' ' . sprintf(__('Fields: %s', 'cometcms-migrator'), implode('; ', $field_messages));
+            }
             if ($status >= 500) {
                 $message .= ' ' . sprintf(__('Endpoint: %s', 'cometcms-migrator'), $path);
             }

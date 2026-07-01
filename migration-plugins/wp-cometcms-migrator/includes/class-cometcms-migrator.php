@@ -376,14 +376,20 @@ final class CometCMS_Migrator
         if (!is_wp_error($existing)) {
             $schema = is_array($existing['data'] ?? null) ? $existing['data'] : [];
             $fields = is_array($schema['fields'] ?? null) ? $schema['fields'] : [];
-            $missing = array_diff_key($acf_fields, $fields);
+            $changed = [];
 
-            if ($missing === [] && !empty($schema['singleton'])) {
+            foreach ($acf_fields as $key => $acf_field) {
+                if (($fields[$key] ?? null) !== $acf_field) {
+                    $changed[$key] = $acf_field;
+                }
+            }
+
+            if ($changed === [] && !empty($schema['singleton'])) {
                 return true;
             }
 
             $schema['singleton'] = true;
-            $schema['fields'] = array_replace($fields, $missing);
+            $schema['fields'] = array_replace($fields, $changed);
             $updated = $this->client->update_content_type($collection, $schema);
 
             return is_wp_error($updated) ? $updated : true;
@@ -453,24 +459,17 @@ final class CometCMS_Migrator
 
     private function migrate_acf_option_page(array $page, string $collection): array|WP_Error
     {
-        $payload = $this->acf_option_page_payload($page);
-        $identifier = (string) $payload['slug'];
-        $action = 'created';
+        $payload = $this->acf_option_page_payload($page, $collection);
+        $updated = $this->client->update_entry($collection, $collection, $payload);
+        if (!is_wp_error($updated)) {
+            $verified = $this->verify_acf_option_page_entry($collection, $payload, $updated);
 
-        if (!empty($this->settings['update_existing'])) {
-            $lookup = $this->client->get_entry($collection, $collection);
-            if (is_wp_error($lookup)) {
-                $lookup = $this->client->get_entry($collection, $identifier);
-            }
+            return is_wp_error($verified) ? $verified : ['action' => 'updated', 'entry' => $verified['data'] ?? []];
+        }
 
-            if (!is_wp_error($lookup) && !empty($lookup['data']['id'])) {
-                $updated = $this->client->update_entry($collection, (string) $lookup['data']['id'], $payload);
-                if (is_wp_error($updated)) {
-                    return $updated;
-                }
-
-                return ['action' => 'updated', 'entry' => $updated['data'] ?? []];
-            }
+        $update_error_data = $updated->get_error_data();
+        if ((int) ($update_error_data['status'] ?? 0) !== 404) {
+            return $updated;
         }
 
         $created = $this->client->create_entry($collection, $payload);
@@ -478,14 +477,63 @@ final class CometCMS_Migrator
             return $created;
         }
 
-        return ['action' => $action, 'entry' => $created['data'] ?? []];
+        $verified = $this->verify_acf_option_page_entry($collection, $payload, $created);
+
+        return is_wp_error($verified) ? $verified : ['action' => 'created', 'entry' => $verified['data'] ?? []];
     }
 
-    private function acf_option_page_payload(array $page): array
+    private function verify_acf_option_page_entry(string $collection, array $payload, array $result): array|WP_Error
+    {
+        if ($this->acf_option_page_entry_has_payload($result, $payload)) {
+            return $result;
+        }
+
+        $fetched = $this->client->get_entry($collection, $collection);
+        if (!is_wp_error($fetched) && $this->acf_option_page_entry_has_payload($fetched, $payload)) {
+            return $fetched;
+        }
+
+        $retry = $this->client->update_entry($collection, $collection, $payload);
+        if (!is_wp_error($retry) && $this->acf_option_page_entry_has_payload($retry, $payload)) {
+            return $retry;
+        }
+
+        if (is_wp_error($retry)) {
+            return $retry;
+        }
+
+        return new WP_Error(
+            'cometcms_acf_options_entry_missing',
+            __('CometCMS accepted the option page migration request, but the singleton entry still did not contain the migrated fields.', 'cometcms-migrator'),
+            ['collection' => $collection]
+        );
+    }
+
+    private function acf_option_page_entry_has_payload(array $result, array $payload): bool
+    {
+        $entry = is_array($result['data'] ?? null) ? $result['data'] : [];
+        $data = is_array($entry['data'] ?? null) ? $entry['data'] : [];
+
+        foreach (['wordpress_type', 'acf_option_post_id'] as $field) {
+            if (array_key_exists($field, $entry) && (string) $entry[$field] === (string) ($payload[$field] ?? '')) {
+                continue;
+            }
+
+            if (array_key_exists($field, $data) && (string) $data[$field] === (string) ($payload[$field] ?? '')) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function acf_option_page_payload(array $page, string $collection): array
     {
         $payload = [
             'title' => (string) $page['title'],
-            'slug' => (string) $page['slug'],
+            'slug' => $collection,
             'status' => 'published',
             'wordpress_type' => 'acf_options_page',
             'acf_option_post_id' => (string) $page['post_id'],
@@ -633,7 +681,7 @@ final class CometCMS_Migrator
                 continue;
             }
 
-            $value = $field['value'] ?? null;
+            $value = $this->acf_field_source_value($field, $source);
             $payload[$key] = $this->acf_field_value($value, $field);
             $raw[(string) ($field['name'] ?? $key)] = $this->acf_json_value($value);
         }
@@ -652,6 +700,39 @@ final class CometCMS_Migrator
         }
 
         return self::acf_field_objects_for_raw_source($source, $load_value);
+    }
+
+    private function acf_field_source_value(array $field, int|string $source): mixed
+    {
+        if (!function_exists('get_field')) {
+            return $field['value'] ?? null;
+        }
+
+        $field_ref = (string) ($field['key'] ?? $field['name'] ?? '');
+        $name = (string) ($field['name'] ?? '');
+        $sources = [$source];
+
+        if (in_array((string) $source, ['option', 'options'], true)) {
+            $sources = array_values(array_unique([(string) $source, 'option', 'options']));
+        }
+
+        foreach ($sources as $candidate_source) {
+            if ($field_ref !== '') {
+                $value = get_field($field_ref, $candidate_source, true);
+                if ($value !== null) {
+                    return $value;
+                }
+            }
+
+            if ($name !== '' && $name !== $field_ref) {
+                $value = get_field($name, $candidate_source, true);
+                if ($value !== null) {
+                    return $value;
+                }
+            }
+        }
+
+        return $field['value'] ?? null;
     }
 
     private function acf_payload_key(array $field): string
@@ -790,10 +871,7 @@ final class CometCMS_Migrator
         $options = [];
 
         foreach ($choices as $value => $label) {
-            $options[] = [
-                'value' => (string) $value,
-                'label' => is_scalar($label) ? (string) $label : (string) $value,
-            ];
+            $options[(string) $value] = is_scalar($label) ? (string) $label : (string) $value;
         }
 
         return $options;
