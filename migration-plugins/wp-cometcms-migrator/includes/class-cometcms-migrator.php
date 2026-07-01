@@ -49,12 +49,34 @@ final class CometCMS_Migrator
         $acf_option_pages = array_values(array_filter(array_map('sanitize_key', (array) ($input['acf_option_pages'] ?? []))));
         $acf_option_collections = [];
 
+        foreach ((array) ($input['collections'] ?? []) as $post_type => $collection) {
+            $post_type = sanitize_key((string) $post_type);
+            if ($post_type === '') {
+                continue;
+            }
+
+            $collections[$post_type] = sanitize_title((string) $collection);
+        }
+
         foreach ($post_types as $post_type) {
-            $collections[$post_type] = sanitize_title((string) ($input['collections'][$post_type] ?? $defaults['collections'][$post_type] ?? 'wordpress-' . $post_type));
+            if (!isset($collections[$post_type])) {
+                $collections[$post_type] = sanitize_title((string) ($defaults['collections'][$post_type] ?? 'wordpress-' . $post_type));
+            }
+        }
+
+        foreach ((array) ($input['acf_option_collections'] ?? []) as $page_slug => $collection) {
+            $page_slug = sanitize_key((string) $page_slug);
+            if ($page_slug === '') {
+                continue;
+            }
+
+            $acf_option_collections[$page_slug] = sanitize_title((string) $collection);
         }
 
         foreach ($acf_option_pages as $page_slug) {
-            $acf_option_collections[$page_slug] = sanitize_title((string) ($input['acf_option_collections'][$page_slug] ?? 'wordpress-acf-options-' . $page_slug));
+            if (!isset($acf_option_collections[$page_slug])) {
+                $acf_option_collections[$page_slug] = sanitize_title('wordpress-acf-options-' . $page_slug);
+            }
         }
 
         return [
@@ -63,8 +85,8 @@ final class CometCMS_Migrator
             'api_key' => sanitize_text_field((string) ($input['api_key'] ?? '')),
             'timeout' => max(10, min(300, (int) ($input['timeout'] ?? $defaults['timeout']))),
             'batch_size' => max(1, min(50, (int) ($input['batch_size'] ?? $defaults['batch_size']))),
-            'post_types' => $post_types ?: $defaults['post_types'],
-            'collections' => $collections ?: $defaults['collections'],
+            'post_types' => $post_types,
+            'collections' => array_replace($defaults['collections'], $collections),
             'create_schema' => !empty($input['create_schema']),
             'update_existing' => !empty($input['update_existing']),
             'migrate_media' => !empty($input['migrate_media']),
