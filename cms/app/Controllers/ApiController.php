@@ -148,6 +148,12 @@ final class ApiController
     public function contentIndex(string $collection): never
     {
         $this->requireCollection($collection);
+        $schema = $this->types->find($collection);
+
+        if (!empty($schema['singleton'])) {
+            $this->contentShow($collection, $collection);
+        }
+
         $admin = $this->optionalTokenWithPermission('content.read', ['type' => 'content', 'collection' => $collection]) !== null;
         $result = $this->content->query($collection, $_GET, $admin);
         $include = $this->includeFields();

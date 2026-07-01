@@ -211,6 +211,7 @@ const EVENT_LABELS = {
   "role.updated": "activity.roleUpdated",
   "role.deleted": "activity.roleDeleted",
   "token.created": "activity.tokenCreated",
+  "token.revoked": "activity.tokenRevoked",
   "token.deleted": "activity.tokenDeleted",
   login: "activity.login",
   logout: "activity.logout",

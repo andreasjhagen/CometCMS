@@ -480,7 +480,7 @@ paths:
     get:
       tags: [Content]
       summary: List content entries
-      description: Without a token, only public entries are returned. With `content.read` on `content:{collection}:*`, drafts and protected entries are included.
+      description: Without a token, only public entries are returned. With `content.read` on `content:{collection}:*`, drafts and protected entries are included. For singleton content types, this path returns the fixed entry object.
       x-required-permission:
         effect: allow
         actions: [content.read]
@@ -522,7 +522,7 @@ paths:
           description: Field filters, including `in`, `ne`, `gt`, `gte`, `lt`, `lte`, and `contains` operators.
       responses:
         "200":
-          description: Entry list.
+          description: Entry list, or the fixed entry object for singleton content types.
           content:
             application/json:
               schema:

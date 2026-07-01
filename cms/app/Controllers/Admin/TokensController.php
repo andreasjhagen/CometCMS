@@ -29,8 +29,16 @@ final class TokensController extends BaseController
     {
         $actor = $this->requirePermission('tokens.revoke', ['type' => 'token', 'token_id' => $tokenId]);
         $this->verifyCsrf();
-        $this->tokens->revoke($tokenId);
-        $this->logger->info('token.deleted', ['token_id' => $tokenId, 'actor_id' => $actor['id'] ?? null]);
-        $this->json(['data' => ['ok' => true]]);
+        $token = $this->tokens->find($tokenId);
+        $action = !empty($token['revoked_at']) ? 'deleted' : 'revoked';
+
+        if ($action === 'deleted') {
+            $this->tokens->delete($tokenId);
+        } else {
+            $this->tokens->revoke($tokenId);
+        }
+
+        $this->logger->info('token.' . $action, ['token_id' => $tokenId, 'actor_id' => $actor['id'] ?? null]);
+        $this->json(['data' => ['ok' => true, 'action' => $action]]);
     }
 }

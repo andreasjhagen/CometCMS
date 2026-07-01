@@ -743,6 +743,7 @@ const apiEndpointUrl = computed(() => {
       collection,
       entryId: entryId.value || collection,
       locale: currentLocale.value,
+      singleton: isSingleton.value,
     });
   }
 

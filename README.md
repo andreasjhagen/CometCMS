@@ -60,7 +60,7 @@ DELETE /api/v1/workspaces/{workspace}/content/{collection}/{identifier}
 
 Entry payloads use `id` for a stable opaque identifier and `slug` for the URL-safe slug. `{identifier}` may be either value.
 
-Content types can be repeatable collections or single pages. Single pages use one fixed entry whose slug matches the content type name, e.g. `GET /api/v1/workspaces/{workspace}/content/start-page/start-page`.
+Content types can be repeatable collections or single pages. Single pages use one fixed entry whose slug matches the content type name, and the default read URL is the collection path itself, e.g. `GET /api/v1/workspaces/{workspace}/content/start-page`.
 
 Public reads return only `published` entries, or `scheduled` entries whose `published_at` is in the past. `draft`, `protected`, `archived`, and soft-deleted entries are hidden unless an authenticated token is used.
 

@@ -109,9 +109,7 @@ Permanently deletes a content type and all its entries. This action is irreversi
 
 ### `GET /api/v1/workspaces/{workspace}/content/{collection}`
 
-Returns entries in a collection.
-
-For single page content types, fetch the fixed entry with `GET /api/v1/workspaces/{workspace}/content/{collection}/{collection}` instead of using the list endpoint.
+Returns entries in a collection. For single page content types, this route returns the fixed entry object instead of a list.
 
 Without a token, only `published` entries and `scheduled` entries whose `published_at` is in the past are returned. With a token that has `content.read` on the collection, drafts and protected entries are included.
 

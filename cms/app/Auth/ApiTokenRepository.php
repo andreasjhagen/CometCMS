@@ -67,6 +67,12 @@ final class ApiTokenRepository
         $this->save($token);
     }
 
+    public function delete(string $id): void
+    {
+        Security::assertSafeName($id);
+        $this->store->delete($id);
+    }
+
     public function findByToken(string $plainToken): ?array
     {
         $this->migrateLegacyUserTokens();

@@ -17,6 +17,11 @@ export function getActiveWorkspace() {
 export function setActiveWorkspace(workspace) {
   activeWorkspace = workspace || defaultWorkspace || 'default'
   browserStorage?.setItem('cometcms.workspace', activeWorkspace)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cometcms:workspace-changed', {
+      detail: { workspace: activeWorkspace },
+    }))
+  }
 }
 
 export function getDefaultWorkspace() {

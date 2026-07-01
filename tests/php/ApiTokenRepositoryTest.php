@@ -50,3 +50,15 @@ test('legacy user tokens migrate to the application token store', function (): v
     assert_same('', $users->find((string) $user['id'])['api_tokens'] ?? '');
     assert_same('Legacy', $tokens->find('tok_1234567890')['name'] ?? null);
 });
+
+test('revoked api tokens can be deleted permanently', function (): void {
+    $tokens = new ApiTokenRepository();
+    $plain = $tokens->create('Deploy');
+    $stored = $tokens->all()[0] ?? null;
+
+    $tokens->revoke((string) $stored['id']);
+    assert_null($tokens->findByToken($plain));
+
+    $tokens->delete((string) $stored['id']);
+    assert_null($tokens->find((string) $stored['id']));
+});

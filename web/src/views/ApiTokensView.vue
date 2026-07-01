@@ -65,22 +65,23 @@
         :key="token.id"
         :token="token"
         @revoke="handleRevokeToken(token.id)"
+        @delete="handleDeleteToken(token.id)"
       />
     </div>
 
     <ConfirmModal
-      v-model="showRevokeModal"
-      :title="t('tokens.revokeConfirm')"
-      :message="t('tokens.revokeMessage')"
-      :confirm-label="t('tokens.revoke')"
-      :loading="revokingToken"
-      @confirm="confirmRevokeToken"
+      v-model="showTokenActionModal"
+      :title="tokenActionTitle"
+      :message="tokenActionMessage"
+      :confirm-label="tokenActionConfirmLabel"
+      :loading="processingTokenAction"
+      @confirm="confirmTokenAction"
     />
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
 import PermissionGrantsEditor from "../components/PermissionGrantsEditor.vue";
@@ -95,9 +96,10 @@ const loading = ref(true);
 const tokens = ref([]);
 const showTokenForm = ref(false);
 const newTokenValue = ref("");
-const showRevokeModal = ref(false);
-const revokingToken = ref(false);
-const pendingRevokeTokenId = ref("");
+const showTokenActionModal = ref(false);
+const processingTokenAction = ref(false);
+const pendingTokenId = ref("");
+const pendingTokenAction = ref("revoke");
 
 const defaultTokenPermissions = [
   {
@@ -112,6 +114,19 @@ const tokenForm = ref({
   description: "",
   permissions: clonePermissions(defaultTokenPermissions),
 });
+const tokenActionTitle = computed(() =>
+  pendingTokenAction.value === "delete"
+    ? t("tokens.deleteConfirm")
+    : t("tokens.revokeConfirm"),
+);
+const tokenActionMessage = computed(() =>
+  pendingTokenAction.value === "delete"
+    ? t("tokens.deleteMessage")
+    : t("tokens.revokeMessage"),
+);
+const tokenActionConfirmLabel = computed(() =>
+  pendingTokenAction.value === "delete" ? t("tokens.delete") : t("tokens.revoke"),
+);
 
 function openTokenForm() {
   newTokenValue.value = "";
@@ -149,30 +164,45 @@ async function handleCreateToken() {
 }
 
 async function handleRevokeToken(tokenId) {
-  pendingRevokeTokenId.value = String(tokenId || "");
-  if (!pendingRevokeTokenId.value) {
+  pendingTokenId.value = String(tokenId || "");
+  if (!pendingTokenId.value) {
     return;
   }
 
-  showRevokeModal.value = true;
+  pendingTokenAction.value = "revoke";
+  showTokenActionModal.value = true;
 }
 
-async function confirmRevokeToken() {
-  if (!pendingRevokeTokenId.value || revokingToken.value) {
+async function handleDeleteToken(tokenId) {
+  pendingTokenId.value = String(tokenId || "");
+  if (!pendingTokenId.value) {
     return;
   }
 
-  revokingToken.value = true;
+  pendingTokenAction.value = "delete";
+  showTokenActionModal.value = true;
+}
+
+async function confirmTokenAction() {
+  if (!pendingTokenId.value || processingTokenAction.value) {
+    return;
+  }
+
+  processingTokenAction.value = true;
   try {
-    await api.tokens.delete(pendingRevokeTokenId.value);
-    toast.success(t("tokens.tokenRevoked"));
-    showRevokeModal.value = false;
-    pendingRevokeTokenId.value = "";
+    await api.tokens.delete(pendingTokenId.value);
+    toast.success(
+      pendingTokenAction.value === "delete"
+        ? t("tokens.tokenDeleted")
+        : t("tokens.tokenRevoked"),
+    );
+    showTokenActionModal.value = false;
+    pendingTokenId.value = "";
     await load();
   } catch (err) {
     toast.error(err.message);
   } finally {
-    revokingToken.value = false;
+    processingTokenAction.value = false;
   }
 }
 

@@ -91,11 +91,15 @@ export function contentCollectionEndpoint(
 }
 
 export function contentEntryEndpoint(
-  { collection, entryId, locale },
+  { collection, entryId, locale, singleton = false },
   origin,
 ) {
+  const path = singleton
+    ? `/content/${encodePathSegment(collection)}`
+    : `/content/${encodePathSegment(collection)}/${encodePathSegment(entryId)}`;
+
   return buildWorkspacedApiUrl(
-    `/content/${encodePathSegment(collection)}/${encodePathSegment(entryId)}`,
+    path,
     { locale },
     origin,
   );

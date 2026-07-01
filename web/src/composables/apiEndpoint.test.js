@@ -108,11 +108,11 @@ describe("api endpoint helpers", () => {
   it("builds singleton and media detail endpoints", () => {
     expect(
       contentEntryEndpoint(
-        { collection: "homepage", entryId: "homepage", locale: "en" },
+        { collection: "homepage", entryId: "homepage", locale: "en", singleton: true },
         origin,
       ),
     ).toBe(
-      "https://example.test/api/v1/workspaces/default/content/homepage/homepage?locale=en",
+      "https://example.test/api/v1/workspaces/default/content/homepage?locale=en",
     );
 
     expect(mediaDetailEndpoint("hero image.png", origin)).toBe(

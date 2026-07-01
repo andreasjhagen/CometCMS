@@ -16,7 +16,7 @@ A **content type** defines the structure (schema) for content. Most content type
 6. Optional: add locales and choose a default locale.
 7. Click **Save**.
 
-Single page content types appear under **Single** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, so a `start-page` single page is fetched at `/api/v1/workspaces/{workspace}/content/start-page/start-page`.
+Single page content types appear under **Single** in the sidebar and open directly in the editor. Their entry slug is fixed to the content type name, and the default API read URL is `/api/v1/workspaces/{workspace}/content/start-page`.
 
 ## Editing a content type
 
