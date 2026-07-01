@@ -80,6 +80,7 @@ final class CometCMS_Migrator_Admin
 
         $settings = self::settings();
         $post_types = self::available_post_types();
+        $acf_option_pages = CometCMS_Migrator::available_acf_option_pages();
         ?>
         <div class="wrap cometcms-migrator">
             <h1><?php esc_html_e('CometCMS Migrator', 'cometcms-migrator'); ?></h1>
@@ -115,7 +116,7 @@ final class CometCMS_Migrator_Admin
                     <thead>
                         <tr>
                             <th><?php esc_html_e('Migrate', 'cometcms-migrator'); ?></th>
-                            <th><?php esc_html_e('WordPress post type', 'cometcms-migrator'); ?></th>
+                            <th><?php esc_html_e('WordPress source', 'cometcms-migrator'); ?></th>
                             <th><?php esc_html_e('CometCMS content type', 'cometcms-migrator'); ?></th>
                         </tr>
                     </thead>
@@ -126,6 +127,18 @@ final class CometCMS_Migrator_Admin
                                 <td><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[post_types][]" value="<?php echo esc_attr($post_type); ?>" <?php checked($enabled); ?>></td>
                                 <td><?php echo esc_html($label); ?> <code><?php echo esc_html($post_type); ?></code></td>
                                 <td><input type="text" name="<?php echo esc_attr(self::OPTION); ?>[collections][<?php echo esc_attr($post_type); ?>]" value="<?php echo esc_attr((string) ($settings['collections'][$post_type] ?? 'wordpress-' . $post_type)); ?>"></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php foreach ($acf_option_pages as $page) : ?>
+                            <?php
+                            $page_slug = (string) $page['slug'];
+                            $enabled = in_array($page_slug, (array) $settings['acf_option_pages'], true);
+                            $collection = (string) ($settings['acf_option_collections'][$page_slug] ?? 'wordpress-acf-options-' . $page_slug);
+                            ?>
+                            <tr>
+                                <td><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[acf_option_pages][]" value="<?php echo esc_attr($page_slug); ?>" <?php checked($enabled); ?>></td>
+                                <td><?php echo esc_html((string) $page['title']); ?> <code><?php echo esc_html((string) $page['post_id']); ?></code> <span class="description"><?php esc_html_e('ACF option page', 'cometcms-migrator'); ?></span></td>
+                                <td><input type="text" name="<?php echo esc_attr(self::OPTION); ?>[acf_option_collections][<?php echo esc_attr($page_slug); ?>]" value="<?php echo esc_attr($collection); ?>"></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -153,8 +166,7 @@ final class CometCMS_Migrator_Admin
                         <td>
                             <label><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[migrate_acf]" value="1" <?php checked(!empty($settings['migrate_acf'])); ?>> <?php esc_html_e('Import Advanced Custom Fields values and add missing CometCMS schema fields', 'cometcms-migrator'); ?></label>
                             <p class="description"><?php esc_html_e('Simple ACF fields are mapped to native CometCMS fields. Complex ACF Pro fields such as repeaters and flexible content are stored as JSON.', 'cometcms-migrator'); ?></p>
-                            <p><label><input type="checkbox" name="<?php echo esc_attr(self::OPTION); ?>[migrate_acf_options]" value="1" <?php checked(!empty($settings['migrate_acf_options'])); ?>> <?php esc_html_e('Also migrate ACF option pages', 'cometcms-migrator'); ?></label></p>
-                            <p><label><?php esc_html_e('ACF options content type', 'cometcms-migrator'); ?> <input type="text" name="<?php echo esc_attr(self::OPTION); ?>[acf_options_collection]" value="<?php echo esc_attr((string) $settings['acf_options_collection']); ?>"></label></p>
+                            <p class="description"><?php esc_html_e('ACF option pages are selected in Content Mapping and are created as single-entry CometCMS content types.', 'cometcms-migrator'); ?></p>
                         </td>
                     </tr>
                     <tr>
