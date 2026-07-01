@@ -669,6 +669,16 @@ import { api } from "../api/index.js";
 import { useToastStore } from "../stores/toast.js";
 import FieldValueInput from "./FieldValueInput.vue";
 import SearchableSelect from "./SearchableSelect.vue";
+import {
+  apiQueryResources as resources,
+  buildEndpointPath,
+  buildQueryItems,
+  encodeQueryKey,
+  fieldKind,
+  fieldLabel,
+  operatorsForField,
+} from "../composables/apiQueryBuilderUtils.js";
+import { categoryTreeOptions } from "../composables/mediaUtils.js";
 
 const props = defineProps({
   apiBase: {
@@ -682,27 +692,6 @@ const props = defineProps({
 });
 
 const toast = useToastStore();
-
-const resources = [
-  {
-    value: "content",
-    label: "Content",
-    description: "List entries or fetch one item",
-    icon: "mdi:folder-outline",
-  },
-  {
-    value: "content-types",
-    label: "Content Types",
-    description: "Read schemas for your frontend",
-    icon: "mdi:cube-outline",
-  },
-  {
-    value: "media",
-    label: "Media",
-    description: "List uploaded files",
-    icon: "mdi:image-multiple-outline",
-  },
-];
 
 const selectedResource = ref("");
 const selectedCollection = ref("");
@@ -824,78 +813,36 @@ const mediaCategoryDefaultLabel = computed(() => {
   if (mediaCategoryOptions.value.length === 0) return "All categories";
   return "All categories";
 });
-const mediaCategoryOptions = computed(() =>
-  mediaCategories.value.map((category) => {
-    const parts = categoryParts(category);
-    const label = parts[parts.length - 1] ?? category;
-    const depth = Math.max(0, parts.length - 1);
-    return { path: category, optionLabel: `${"  ".repeat(depth)}${label}` };
+const mediaCategoryOptions = computed(() => categoryTreeOptions(mediaCategories.value));
+
+const endpointPath = computed(() =>
+  buildEndpointPath({
+    selectedResource: selectedResource.value,
+    typeMode: typeMode.value,
+    collectionName: collectionName.value,
+    identifier: identifier.value,
+    isActiveSingleton: isActiveSingleton.value,
+    contentMode: contentMode.value,
   }),
 );
 
-const endpointPath = computed(() => {
-  if (!selectedResource.value) {
-    return "/{resource}";
-  }
-
-  if (selectedResource.value === "content-types") {
-    return typeMode.value === "single" && collectionName.value
-      ? `/content-types/${encodeURIComponent(collectionName.value)}`
-      : "/content-types";
-  }
-
-  if (selectedResource.value === "media") {
-    return "/media";
-  }
-
-  const collection = collectionName.value || "{collection}";
-  const base = `/content/${encodeURIComponent(collection)}`;
-  const item = identifier.value.trim();
-
-  if (isActiveSingleton.value) {
-    return base;
-  }
-
-  return contentMode.value === "single" && item !== ""
-    ? `${base}/${encodeURIComponent(item)}`
-    : base;
-});
-
-const queryItems = computed(() => {
-  const items = [];
-
-  if (selectedResource.value === "content") {
-    const includeValue =
-      include.value === "__custom" ? customInclude.value : include.value;
-
-    if (contentMode.value === "list") {
-      addQuery(items, "limit", limit.value);
-      addQuery(items, "offset", offset.value);
-      addQuery(items, "sort", sort.value);
-      addQuery(items, "q", search.value);
-
-      if (filterField.value && hasFilterValue(filterValue.value)) {
-        const key =
-          filterOperator.value === "eq"
-            ? `filter[${filterField.value}]`
-            : `filter[${filterField.value}][${filterOperator.value}]`;
-        addQuery(items, key, filterValue.value);
-      }
-    }
-
-    addQuery(items, "include", includeValue);
-    addQuery(items, "locale", locale.value);
-  }
-
-  if (selectedResource.value === "media") {
-    addQuery(items, "limit", limit.value);
-    addQuery(items, "offset", offset.value);
-    addQuery(items, "q", search.value);
-    addQuery(items, "category", mediaCategory.value);
-  }
-
-  return items;
-});
+const queryItems = computed(() =>
+  buildQueryItems({
+    selectedResource: selectedResource.value,
+    contentMode: contentMode.value,
+    limit: limit.value,
+    offset: offset.value,
+    sort: sort.value,
+    search: search.value,
+    filterField: filterField.value,
+    filterOperator: filterOperator.value,
+    filterValue: filterValue.value,
+    include: include.value,
+    customInclude: customInclude.value,
+    locale: locale.value,
+    mediaCategory: mediaCategory.value,
+  }),
+);
 
 const queryString = computed(() =>
   queryItems.value
@@ -1121,102 +1068,6 @@ async function loadMediaCategories() {
   } finally {
     mediaCategoriesLoading.value = false;
   }
-}
-
-function addQuery(items, key, value) {
-  const normalized = normalizeQueryValue(value);
-  if (normalized !== "") {
-    items.push([key, normalized]);
-  }
-}
-
-function normalizeQueryValue(value) {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item ?? "").trim())
-      .filter(Boolean)
-      .join(",");
-  }
-
-  return String(value ?? "").trim();
-}
-
-function hasFilterValue(value) {
-  return normalizeQueryValue(value) !== "";
-}
-
-function categoryParts(category) {
-  return String(category)
-    .split("/")
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function fieldLabel(key, config) {
-  if (config?.label) return String(config.label);
-  return key
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function fieldKind(type) {
-  return [
-    "text",
-    "slug",
-    "textarea",
-    "html",
-    "number",
-    "range",
-    "boolean",
-    "date",
-    "datetime",
-    "select",
-  ].includes(type)
-    ? type
-    : "text";
-}
-
-function operatorsForField(field) {
-  if (!field) return [{ value: "eq", label: "=" }];
-
-  if (["number", "range", "date", "datetime"].includes(field.kind)) {
-    return [
-      { value: "eq", label: "=" },
-      { value: "ne", label: "!=" },
-      { value: "gt", label: ">" },
-      { value: "gte", label: ">=" },
-      { value: "lt", label: "<" },
-      { value: "lte", label: "<=" },
-      { value: "in", label: "in" },
-    ];
-  }
-
-  if (field.kind === "boolean") {
-    return [
-      { value: "eq", label: "=" },
-      { value: "ne", label: "!=" },
-    ];
-  }
-
-  if (field.kind === "select" || field.config?.multiple) {
-    return [
-      { value: "eq", label: "=" },
-      { value: "ne", label: "!=" },
-      { value: "in", label: "in" },
-      { value: "contains", label: "contains" },
-    ];
-  }
-
-  return [
-    { value: "eq", label: "=" },
-    { value: "ne", label: "!=" },
-    { value: "contains", label: "contains" },
-    { value: "in", label: "in" },
-  ];
-}
-
-function encodeQueryKey(key) {
-  return encodeURIComponent(key).replace(/%5B/g, "[").replace(/%5D/g, "]");
 }
 
 async function copy(value) {

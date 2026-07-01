@@ -240,6 +240,7 @@ Each file object includes the following fields:
 | ------------- | ---------------------------------------------------- |
 | `filename`    | File name                                            |
 | `url`         | Absolute URL to the file                             |
+| `thumb_url`   | Absolute URL to the generated thumbnail, or `url`    |
 | `size`        | File size in bytes                                   |
 | `mime`        | MIME type                                            |
 | `category`    | Assigned category path, or empty string              |

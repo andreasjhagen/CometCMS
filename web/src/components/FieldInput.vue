@@ -49,16 +49,16 @@
 
     <div v-else-if="config.type === 'media'" class="space-y-2">
       <div class="flex flex-wrap gap-2">
-        <a
+        <div
           v-for="file in mediaValues"
           :key="file"
-          :href="mediaUrl(file)"
-          target="_blank"
-          rel="noreferrer"
           class="inline-flex max-w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:border-theme-300 hover:text-theme-700"
         >
-          <span
+          <button
+            type="button"
             class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-slate-100"
+            :title="`Preview ${file}`"
+            @click="openMediaPreview(file)"
           >
             <img
               v-if="isImage(file)"
@@ -67,9 +67,15 @@
               class="h-full w-full object-cover"
             />
             <Icon v-else v-bind="getFileIcon(file)" class="h-4 w-4" />
-          </span>
-          <span class="truncate">{{ file }}</span>
-        </a>
+          </button>
+          <a
+            :href="mediaUrl(file)"
+            target="_blank"
+            rel="noreferrer"
+            class="truncate"
+            >{{ file }}</a
+          >
+        </div>
       </div>
     </div>
 
@@ -414,10 +420,13 @@
         @dragleave.prevent="onMediaDragLeave"
         @drop.prevent="onMediaDrop"
       >
-        <div
+        <button
           v-for="file in mediaPreviewTiles"
           :key="file"
+          type="button"
           class="overflow-hidden rounded-md bg-slate-200 flex items-center justify-center"
+          :title="`Preview ${file}`"
+          @click.stop="openMediaPreview(file)"
         >
           <img
             v-if="isImage(file)"
@@ -426,7 +435,7 @@
             :alt="file"
           />
           <Icon v-else v-bind="getFileIcon(file)" class="w-5 h-5" />
-        </div>
+        </button>
         <div
           v-if="mediaPreviewOverflow > 0"
           class="rounded-md bg-slate-900/75 text-white text-xs font-semibold flex items-center justify-center"
@@ -453,16 +462,26 @@
         @dragleave.prevent="onMediaDragLeave"
         @drop.prevent="onMediaDrop"
       >
-        <template v-if="mediaValues.length > 0 && isImage(mediaValues[0])">
+        <button
+          v-if="mediaValues.length > 0"
+          type="button"
+          class="h-full w-full"
+          :title="`Preview ${mediaValues[0]}`"
+          @click.stop="openMediaPreview(mediaValues[0])"
+        >
           <img
+            v-if="isImage(mediaValues[0])"
             :src="mediaUrl(mediaValues[0])"
             class="w-full h-full object-cover"
             :alt="String(mediaValues[0])"
           />
-        </template>
-        <template v-else-if="mediaValues.length > 0">
-          <Icon v-bind="getFileIcon(mediaValues[0])" class="w-8 h-8" />
-        </template>
+          <span
+            v-else
+            class="flex h-full w-full items-center justify-center"
+          >
+            <Icon v-bind="getFileIcon(mediaValues[0])" class="w-8 h-8" />
+          </span>
+        </button>
         <Icon v-else icon="mdi:image-outline" class="w-8 h-8 text-slate-400" />
       </div>
 
@@ -547,8 +566,11 @@
           icon="mdi:drag-vertical"
           class="h-4 w-4 shrink-0 cursor-grab text-slate-400 active:cursor-grabbing"
         />
-        <div
+        <button
+          type="button"
           class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-slate-100"
+          :title="`Preview ${file}`"
+          @click.stop="openMediaPreview(file)"
         >
           <img
             v-if="isImage(file)"
@@ -557,7 +579,7 @@
             class="h-full w-full object-cover"
           />
           <Icon v-else v-bind="getFileIcon(file)" class="h-4 w-4" />
-        </div>
+        </button>
         <span
           class="min-w-0 flex-1 truncate text-xs text-slate-700"
           :title="file"
@@ -716,6 +738,56 @@
     class="form-input w-full rounded-lg border-slate-300 text-sm"
     @input="$emit('update:modelValue', $event.target.value)"
   />
+
+  <div
+    v-if="mediaPreviewFile"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 px-4 py-6"
+    @click.self="closeMediaPreview"
+  >
+    <div
+      class="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
+    >
+      <div class="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
+        <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+          {{ mediaPreviewFile }}
+        </h2>
+        <a
+          :href="mediaPreviewUrl"
+          target="_blank"
+          rel="noreferrer"
+          class="btn-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs"
+        >
+          <Icon icon="mdi:open-in-new" class="h-4 w-4" />
+          Open
+        </a>
+        <button
+          type="button"
+          class="text-slate-400 transition-colors hover:text-slate-700"
+          title="Close"
+          @click="closeMediaPreview"
+        >
+          <Icon icon="mdi:close" class="h-5 w-5" />
+        </button>
+      </div>
+      <div class="flex min-h-0 flex-1 items-center justify-center bg-slate-950 p-4">
+        <img
+          v-if="mediaPreviewIsImage"
+          :src="mediaPreviewUrl"
+          :alt="mediaPreviewFile"
+          class="max-h-[76vh] max-w-full object-contain"
+        />
+        <div
+          v-else
+          class="flex min-h-64 w-full max-w-lg flex-col items-center justify-center gap-4 rounded-lg bg-white p-8 text-center"
+        >
+          <Icon v-bind="getFileIcon(mediaPreviewFile)" class="h-16 w-16" />
+          <p class="max-w-full truncate text-sm font-medium text-slate-700">
+            {{ mediaPreviewFile }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -727,49 +799,18 @@ import FieldInput from "./FieldInput.vue";
 import { api, getActiveWorkspace } from "../api/index.js";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
-import { marked } from "marked";
-import TurndownService from "turndown";
 import { Icon } from "@iconify/vue";
 import { fieldDefaultValue } from "../composables/fieldDefaults.js";
-
-const turndown = new TurndownService({
-  headingStyle: "atx",
-  codeBlockStyle: "fenced",
-});
-
-const ALLOWED_HTML_TAGS = {
-  a: ["href", "title", "target", "rel"],
-  blockquote: [],
-  br: [],
-  code: [],
-  div: ["class"],
-  em: [],
-  h1: [],
-  h2: [],
-  h3: [],
-  h4: [],
-  h5: [],
-  h6: [],
-  hr: [],
-  img: ["src", "alt", "title", "width", "height"],
-  li: [],
-  ol: [],
-  p: [],
-  pre: [],
-  s: [],
-  span: ["class"],
-  strong: [],
-  table: [],
-  tbody: [],
-  td: [],
-  th: [],
-  thead: [],
-  tr: [],
-  u: [],
-  ul: [],
-};
-
-const DROP_HTML_TAGS = new Set(["iframe", "object", "script", "style"]);
+import { markdownToHtml, sanitizeHtml, turndown } from "../composables/richText.js";
+import {
+  getFileIcon,
+  isImageFile,
+  mediaUrl as buildMediaUrl,
+  normalizeChoiceValue,
+  normalizeChoiceValues,
+  normalizeMediaModel as normalizeMediaModelValue,
+  uploadedMediaFilename,
+} from "../composables/mediaUtils.js";
 
 const props = defineProps({
   name: { type: String, required: true },
@@ -780,6 +821,7 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"]);
 const pickerOpen = ref(false);
+const mediaPreviewFile = ref("");
 const mediaUploadError = ref("");
 const mediaUploading = ref(false);
 const mediaDragDepth = ref(0);
@@ -791,100 +833,6 @@ const richTextMode = ref("visual");
 const isRichTextField = computed(() =>
   ["markdown", "html"].includes(props.config.type),
 );
-
-function markdownToHtml(value) {
-  return marked.parse(String(value ?? ""), { async: false });
-}
-
-function sanitizeHtml(value) {
-  const html = String(value ?? "");
-
-  if (html.trim() === "" || typeof document === "undefined") {
-    return html.trim();
-  }
-
-  const template = document.createElement("template");
-  template.innerHTML = html;
-  sanitizeHtmlChildren(template.content);
-
-  return template.innerHTML.trim();
-}
-
-function sanitizeHtmlChildren(node) {
-  Array.from(node.childNodes).forEach((child) => sanitizeHtmlNode(child));
-}
-
-function sanitizeHtmlNode(node) {
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-
-  const tag = node.tagName.toLowerCase();
-
-  if (DROP_HTML_TAGS.has(tag)) {
-    node.remove();
-    return;
-  }
-
-  sanitizeHtmlChildren(node);
-
-  if (!Object.prototype.hasOwnProperty.call(ALLOWED_HTML_TAGS, tag)) {
-    node.replaceWith(...Array.from(node.childNodes));
-    return;
-  }
-
-  const allowedAttributes = ALLOWED_HTML_TAGS[tag];
-
-  Array.from(node.attributes).forEach((attribute) => {
-    const name = attribute.name.toLowerCase();
-
-    if (
-      !allowedAttributes.includes(name) ||
-      !isSafeHtmlAttributeValue(tag, name, attribute.value)
-    ) {
-      node.removeAttribute(attribute.name);
-    }
-  });
-
-  if (tag === "a" && node.getAttribute("target")?.toLowerCase() === "_blank") {
-    node.setAttribute("rel", "noopener noreferrer");
-  }
-}
-
-function isSafeHtmlAttributeValue(tag, name, value) {
-  const trimmed = String(value ?? "").trim();
-
-  if (name === "href" || name === "src") {
-    return isSafeHtmlUrl(trimmed);
-  }
-
-  if (name === "target") {
-    return ["_blank", "_self", "_parent", "_top"].includes(trimmed);
-  }
-
-  if (tag === "img" && ["width", "height"].includes(name)) {
-    return /^\d{1,4}$/.test(trimmed);
-  }
-
-  return true;
-}
-
-function isSafeHtmlUrl(url) {
-  if (
-    url === "" ||
-    url.startsWith("#") ||
-    url.startsWith("/") ||
-    url.startsWith("./") ||
-    url.startsWith("../")
-  ) {
-    return true;
-  }
-
-  try {
-    const parsed = new URL(url, window.location.origin);
-    return ["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
 
 function richTextToEditorHtml(value) {
   if (props.config.type === "html") {
@@ -1199,66 +1147,6 @@ async function uploadDroppedMedia(files) {
   }
 }
 
-function uploadedMediaFilename(item) {
-  if (item && typeof item === "object") {
-    if (item.url) {
-      const fromUrl = extractMediaFilename(item.url);
-      if (fromUrl !== "") {
-        return fromUrl;
-      }
-    }
-
-    if (item.filename) {
-      const fromFilename = extractMediaFilename(item.filename);
-      if (fromFilename !== "") {
-        return fromFilename;
-      }
-    }
-
-    const rawName = String(item.name ?? item.filename ?? "").trim();
-    if (rawName !== "") {
-      return rawName;
-    }
-  }
-
-  return extractMediaFilename(item);
-}
-
-const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
-
-function getFileIcon(name) {
-  const ext = String(name).split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return { icon: "mdi:file-pdf-box", class: "text-red-500" };
-  if (["doc", "docx", "odt"].includes(ext))
-    return { icon: "mdi:file-word-box", class: "text-blue-600" };
-  if (["xls", "xlsx", "ods", "csv"].includes(ext))
-    return { icon: "mdi:file-excel-box", class: "text-green-600" };
-  if (["ppt", "pptx", "odp"].includes(ext))
-    return { icon: "mdi:file-powerpoint-box", class: "text-orange-500" };
-  if (["zip", "rar", "7z", "tar", "gz", "bz2"].includes(ext))
-    return { icon: "mdi:zip-box", class: "text-yellow-600" };
-  if (
-    [
-      "mp4",
-      "webm",
-      "mov",
-      "m4v",
-      "avi",
-      "mkv",
-      "mpeg",
-      "mpg",
-      "ogv",
-      "3gp",
-      "3g2",
-    ].includes(ext)
-  )
-    return { icon: "mdi:file-video-outline", class: "text-pink-500" };
-  if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext))
-    return { icon: "mdi:file-music-outline", class: "text-purple-500" };
-  if (["txt", "md", "rtf"].includes(ext))
-    return { icon: "mdi:file-document-outline", class: "text-slate-500" };
-  return { icon: "mdi:file-outline", class: "text-slate-400" };
-}
 const mediaValues = computed(() => normalizeMediaValues(props.modelValue));
 const mediaLabel = computed(() => {
   if (mediaValues.value.length === 0) return "No media selected";
@@ -1280,6 +1168,8 @@ const mediaPreviewEmptyTiles = computed(() =>
     0,
   ),
 );
+const mediaPreviewUrl = computed(() => mediaUrl(mediaPreviewFile.value));
+const mediaPreviewIsImage = computed(() => isImage(mediaPreviewFile.value));
 const relationValue = computed(() => {
   if (props.config.multiple) {
     return normalizeChoiceValues(props.modelValue);
@@ -1289,8 +1179,7 @@ const relationValue = computed(() => {
 });
 
 function isImage(value) {
-  const ext = String(value).split(".").pop()?.toLowerCase() ?? "";
-  return imageExts.has(ext);
+  return isImageFile(value);
 }
 
 function normalizeMediaValues(value) {
@@ -1298,111 +1187,19 @@ function normalizeMediaValues(value) {
 }
 
 function normalizeMediaModel(value) {
-  const source = Array.isArray(value) ? value : toStringList(value);
-  const normalized = Array.from(
-    new Set(source.map(extractMediaFilename).filter(Boolean)),
-  );
-
-  return props.config.multiple ? normalized : normalized.slice(0, 1);
-}
-
-function toStringList(value) {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => splitListLikeValue(item));
-  }
-
-  return splitListLikeValue(value);
-}
-
-function splitListLikeValue(value) {
-  if (value === null || value === undefined) {
-    return [];
-  }
-
-  if (typeof value === "object" && !Array.isArray(value)) {
-    const choice = String(value.value ?? value.id ?? "").trim();
-    if (choice !== "") {
-      return [choice];
-    }
-
-    const media = extractMediaFilename(value);
-    if (media !== "") {
-      return [media];
-    }
-
-    return [];
-  }
-
-  const raw = String(value).trim();
-
-  if (!raw) {
-    return [];
-  }
-
-  if (raw.startsWith("[") && raw.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(raw);
-
-      if (Array.isArray(parsed)) {
-        return parsed.map((item) => String(item ?? "").trim()).filter(Boolean);
-      }
-    } catch {
-      // Fall through to comma-separated parsing.
-    }
-  }
-
-  return raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function extractMediaFilename(value) {
-  let raw =
-    value && typeof value === "object"
-      ? String(value.name ?? value.filename ?? value.url ?? "")
-      : String(value ?? "");
-
-  raw = raw.trim();
-
-  if (!raw) {
-    return "";
-  }
-
-  try {
-    raw = decodeURIComponent(raw);
-  } catch {
-    // Keep raw value if it is not URI encoded.
-  }
-
-  const withoutQuery = raw.split(/[?#]/, 1)[0];
-  const normalizedPath = withoutQuery.replace(/\\+/g, "/");
-  const parts = normalizedPath.split("/").filter(Boolean);
-
-  return parts.length > 0 ? parts[parts.length - 1] : "";
-}
-
-function normalizeChoiceValue(value) {
-  if (value === null || value === undefined || value === "") return null;
-  if (Array.isArray(value)) {
-    const first = normalizeChoiceValues(value)[0];
-    return first ?? null;
-  }
-
-  if (typeof value === "object") {
-    const objectValue = String(value.value ?? value.id ?? "").trim();
-    return objectValue === "" ? null : objectValue;
-  }
-
-  return String(value);
-}
-
-function normalizeChoiceValues(value) {
-  return Array.from(new Set(toStringList(value)));
+  return normalizeMediaModelValue(value, props.config.multiple);
 }
 
 function mediaUrl(value) {
-  return `/media/${encodeURIComponent(getActiveWorkspace())}/${encodeURIComponent(String(value))}`;
+  return buildMediaUrl(getActiveWorkspace(), value);
+}
+
+function openMediaPreview(file) {
+  mediaPreviewFile.value = String(file ?? "").trim();
+}
+
+function closeMediaPreview() {
+  mediaPreviewFile.value = "";
 }
 
 function numberOr(value, fallback) {

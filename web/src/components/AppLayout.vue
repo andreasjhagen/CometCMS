@@ -157,7 +157,7 @@
             v-if="collectionTypes.length > 0 || allSidebarTypes.length === 0"
           >
             <div
-              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider"
+              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-theme-500"
             >
               {{ t("app.nav.collections") }}
             </div>
@@ -189,7 +189,7 @@
 
           <template v-if="pageTypes.length > 0">
             <div
-              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider"
+              class="sidebar-label pt-3 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-theme-500"
             >
               {{ t("app.nav.single") }}
             </div>

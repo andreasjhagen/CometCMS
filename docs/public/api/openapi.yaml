@@ -217,13 +217,16 @@ components:
     MediaItem:
       type: object
       required:
-        [filename, name, url, size, mime, category, alt, title, visibility]
+        [filename, name, url, thumb_url, size, mime, category, alt, title, visibility]
       properties:
         filename:
           type: string
         name:
           type: string
         url:
+          type: string
+          format: uri
+        thumb_url:
           type: string
           format: uri
         size:

@@ -609,6 +609,7 @@ import {
   contentCollectionEndpoint,
   contentEntryEndpoint,
 } from "../composables/apiEndpoint.js";
+import { orderLocales } from "../composables/contentDisplay.js";
 
 const users = ref([]);
 const userMap = computed(() =>
@@ -766,12 +767,6 @@ function hasTranslation(loc) {
   return (
     fullEntry.value?.translations != null && loc in fullEntry.value.translations
   );
-}
-
-function orderLocales(locales, defaultLocale) {
-  const unique = [...new Set(locales)];
-  if (!defaultLocale || !unique.includes(defaultLocale)) return unique;
-  return [defaultLocale, ...unique.filter((loc) => loc !== defaultLocale)];
 }
 
 function populateFormFromLocale(entry, loc) {

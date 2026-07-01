@@ -89,7 +89,16 @@
               class="card p-5"
             >
               <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
+                <component
+                  :is="user.id === currentUser?.id ? 'router-link' : 'div'"
+                  :to="user.id === currentUser?.id ? '/profile' : undefined"
+                  class="flex min-w-0 items-center gap-3 rounded-md"
+                  :class="
+                    user.id === currentUser?.id
+                      ? 'transition-colors hover:text-theme-700 focus:outline-none focus:ring-2 focus:ring-theme-500 focus:ring-offset-2'
+                      : ''
+                  "
+                >
                   <div
                     class="w-9 h-9 rounded-full overflow-hidden bg-theme-600 flex items-center justify-center text-white text-sm font-semibold select-none shrink-0"
                   >
@@ -101,7 +110,7 @@
                     />
                     <span v-else>{{ user.username?.[0]?.toUpperCase() }}</span>
                   </div>
-                  <div>
+                  <div class="min-w-0">
                     <p class="font-semibold text-slate-900">
                       {{ user.display_name || user.username }}
                     </p>
@@ -113,8 +122,15 @@
                       {{ user.email }}
                     </p>
                   </div>
-                </div>
+                </component>
                 <div class="flex items-center gap-2">
+                  <router-link
+                    v-if="user.id === currentUser?.id"
+                    to="/profile"
+                    class="btn-secondary text-xs py-1 px-3"
+                  >
+                    {{ t("users.myProfile") }}
+                  </router-link>
                   <button
                     v-if="user.id !== currentUser?.id"
                     @click="openEditUser(user)"

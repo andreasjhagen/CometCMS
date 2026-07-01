@@ -235,17 +235,18 @@
 
         <template v-else-if="files.length > 0">
           <div
-            v-if="totalPages > 1"
             class="mb-4 flex flex-col gap-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between"
           >
             <p>
-              {{
-                t("media.showing", {
-                  start: pageStart,
-                  end: pageEnd,
-                  total: totalFiles,
-                })
-              }}
+              {{ t("media.showingPrefix") }} {{ pageStart }} -
+              <InlinePageSizeSelect
+                v-model="pageSize"
+                :display-value="pageEnd"
+                :options="pageSizeOptions"
+                :aria-label="t('media.rowsPerPage')"
+                @change="changePageSize"
+              />
+              {{ t("media.showingOf") }} {{ totalFiles }}
             </p>
             <div class="flex items-center gap-2">
               <button
@@ -813,6 +814,7 @@ import { Icon } from "@iconify/vue";
 import SlidePanel from "../components/SlidePanel.vue";
 import ConfirmModal from "../components/ConfirmModal.vue";
 import LoadingSpinner from "../components/LoadingSpinner.vue";
+import InlinePageSizeSelect from "../components/InlinePageSizeSelect.vue";
 import MediaCategorySidebar from "../components/MediaCategorySidebar.vue";
 import MediaBulkEditBar from "../components/MediaBulkEditBar.vue";
 import { api } from "../api/index.js";
@@ -824,6 +826,15 @@ import {
   mediaListEndpoint,
 } from "../composables/apiEndpoint.js";
 import { useI18n } from "../i18n/index.js";
+import {
+  categoryLabel,
+  categoryMatchesPath,
+  categoryTreeOptions,
+  fileTypeLabel as mediaFileTypeLabel,
+  formatBytes,
+  getFileIcon,
+  isImageFile,
+} from "../composables/mediaUtils.js";
 
 const ht = useHeightTransition();
 
@@ -922,69 +933,8 @@ const detailAlt = ref("");
 const detailTitle = ref("");
 const savingMeta = ref(false);
 
-const imageExts = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif"]);
-
-function getFileIcon(name) {
-  const ext = String(name).split(".").pop()?.toLowerCase() ?? "";
-  if (ext === "pdf") return { icon: "mdi:file-pdf-box", class: "text-red-500" };
-  if (["doc", "docx", "odt"].includes(ext))
-    return { icon: "mdi:file-word-box", class: "text-blue-600" };
-  if (["xls", "xlsx", "ods", "csv"].includes(ext))
-    return { icon: "mdi:file-excel-box", class: "text-green-600" };
-  if (["ppt", "pptx", "odp"].includes(ext))
-    return { icon: "mdi:file-powerpoint-box", class: "text-orange-500" };
-  if (["zip", "rar", "7z", "tar", "gz", "bz2"].includes(ext))
-    return { icon: "mdi:zip-box", class: "text-yellow-600" };
-  if (
-    [
-      "mp4",
-      "webm",
-      "mov",
-      "m4v",
-      "avi",
-      "mkv",
-      "mpeg",
-      "mpg",
-      "ogv",
-      "3gp",
-      "3g2",
-    ].includes(ext)
-  )
-    return { icon: "mdi:file-video-outline", class: "text-pink-500" };
-  if (["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(ext))
-    return { icon: "mdi:file-music-outline", class: "text-purple-500" };
-  if (["txt", "md", "rtf"].includes(ext))
-    return { icon: "mdi:file-document-outline", class: "text-slate-500" };
-  return { icon: "mdi:file-outline", class: "text-slate-400" };
-}
-
-function fileExtension(name) {
-  return String(name).split(".").pop()?.toLowerCase() ?? "";
-}
-
 function fileTypeLabel(file) {
-  const ext = fileExtension(file.name);
-  if (ext === "") return t("media.genericFile");
-  return ext.toUpperCase();
-}
-
-function categoryParts(category) {
-  return String(category)
-    .split("/")
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function categoryLabel(category) {
-  const parts = categoryParts(category);
-  return parts[parts.length - 1] ?? String(category);
-}
-
-function categoryMatchesPath(category, categoryPath) {
-  return (
-    category === categoryPath ||
-    String(category).startsWith(`${categoryPath} / `)
-  );
+  return mediaFileTypeLabel(file, t);
 }
 
 const selectedCategoryLabel = computed(() => {
@@ -1005,23 +955,17 @@ const selectedCount = computed(() => selectedMedia.value.size);
 const selectionMode = computed(() => selectedCount.value > 0);
 
 // categoryTree is used only for the bulk-category <select> options in the toolbar
-const categoryTree = computed(() =>
-  categories.value.map((category) => {
-    const parts = categoryParts(category);
-    const label = parts[parts.length - 1] ?? category;
-    const depth = Math.max(0, parts.length - 1);
-    return { path: category, optionLabel: `${"  ".repeat(depth)}${label}` };
-  }),
-);
-const pageSize = 20;
+const categoryTree = computed(() => categoryTreeOptions(categories.value));
+const pageSizeOptions = [20, 30, 40, 50, 100, 200, 300];
+const pageSize = ref(20);
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(totalFiles.value / pageSize)),
+  Math.max(1, Math.ceil(totalFiles.value / pageSize.value)),
 );
 const pageStart = computed(() =>
-  totalFiles.value === 0 ? 0 : (currentPage.value - 1) * pageSize + 1,
+  totalFiles.value === 0 ? 0 : (currentPage.value - 1) * pageSize.value + 1,
 );
 const pageEnd = computed(() =>
-  Math.min(currentPage.value * pageSize, totalFiles.value),
+  Math.min(currentPage.value * pageSize.value, totalFiles.value),
 );
 const apiEndpointUrl = computed(() => {
   if (showDetail.value && detailFile.value?.name) {
@@ -1029,8 +973,8 @@ const apiEndpointUrl = computed(() => {
   }
 
   return mediaListEndpoint({
-    limit: pageSize,
-    offset: (currentPage.value - 1) * pageSize,
+    limit: pageSize.value,
+    offset: (currentPage.value - 1) * pageSize.value,
     q: search.value.trim(),
     category: selectedCategory.value,
   });
@@ -1040,17 +984,11 @@ const allResultsSelected = computed(
 );
 
 function isImage(name) {
-  return imageExts.has(fileExtension(name));
+  return isImageFile(name);
 }
 
 function mediaPreviewUrl(file) {
   return file.thumb_url || file.url;
-}
-
-function formatBytes(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / 1048576).toFixed(1) + " MB";
 }
 
 function mediaFileLabel(count) {
@@ -1075,8 +1013,8 @@ async function load() {
     const params = { sort: sortOrder.value };
 
     if (!isUnusedFilter) {
-      params.limit = pageSize;
-      params.offset = (currentPage.value - 1) * pageSize;
+      params.limit = pageSize.value;
+      params.offset = (currentPage.value - 1) * pageSize.value;
     }
 
     const query = search.value.trim();
@@ -1097,7 +1035,10 @@ async function load() {
       totalFiles.value = filtered.length;
     } else {
       const total = res.meta?.total ?? res.data.length;
-      const totalPagesFromResponse = Math.max(1, Math.ceil(total / pageSize));
+      const totalPagesFromResponse = Math.max(
+        1,
+        Math.ceil(total / pageSize.value),
+      );
       if (total > 0 && currentPage.value > totalPagesFromResponse) {
         totalFiles.value = total;
         currentPage.value = totalPagesFromResponse;
@@ -1139,6 +1080,18 @@ function scheduleLoad(resetPage = false) {
   loadTimer = setTimeout(() => {
     load();
   }, 200);
+}
+
+function changePageSize() {
+  clearSelection();
+  lastSelectedIndex.value = -1;
+
+  if (currentPage.value !== 1) {
+    currentPage.value = 1;
+    return;
+  }
+
+  scheduleLoad();
 }
 
 async function uploadFiles(fileList) {
